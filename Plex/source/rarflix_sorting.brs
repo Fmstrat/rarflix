@@ -243,14 +243,14 @@ sub gridSortSection(grid,sortKey = invalid)
     if sourceurl <> invalid then 
         re = CreateObject("roRegex", "(sort=[^\&\?]+)", "i")
         if re.IsMatch(sourceurl) then 
-            if instr(1, sortKey, "titleSort:") > 0 then 
+            if instr(1, sortKey, "titleSort:asc") > 0 then 
                 re = CreateObject("roRegex", "([\?\&]sort=[^\&\?]+)", "i")
                 sourceurl = re.ReplaceAll(sourceurl, "")
             else 
                 sourceurl = re.ReplaceAll(sourceurl, "sort="+sortKey)
             end if
         else 
-            if instr(1, sortKey, "titleSort:") = 0 then 
+            if instr(1, sortKey, "titleSort:asc") = 0 then 
                 f = "?"
                 if instr(1, sourceurl, "?") > 0 then f = "&"    
                 sourceurl = sourceurl + f + "sort="+sortKey
@@ -269,14 +269,14 @@ sub gridSortSection(grid,sortKey = invalid)
             if contentArray[index].key <> invalid then 
                 re = CreateObject("roRegex", "(sort=[^\&\?]+)", "i")
                 if re.IsMatch(contentArray[index].key) then
-                    if instr(1, sortKey, "titleSort:") > 0 then 
+                    if instr(1, sortKey, "titleSort:asc") > 0 then 
                         re = CreateObject("roRegex", "([\?\&]sort=[^\&\?]+)", "i")
                         contentArray[index].key = re.ReplaceAll(contentArray[index].key, "")
                     else 
                         contentArray[index].key = re.ReplaceAll(contentArray[index].key, "sort="+sortKey)
                     end if
                 else 
-                    if instr(1, sortKey, "titleSort:") = 0 then 
+                    if instr(1, sortKey, "titleSort:asc") = 0 then 
                         f = "?"
                         if instr(1, contentArray[index].key, "?") > 0 then f = "&"    
                         contentArray[index].key = contentArray[index].key + f + "sort="+sortKey
