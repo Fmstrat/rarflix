@@ -62,6 +62,8 @@ Function newDirectoryMetadata(container, item) As Object
         directory.key = item@path
     end if
 
+    directory.secondary = item@secondary
+
     return directory
 End Function
 

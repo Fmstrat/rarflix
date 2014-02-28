@@ -462,6 +462,11 @@ Function vcCreateScreenForItem(context, contextIndex, breadcrumbs, show=true) As
         dialog = createPopupMenu(item)
         dialog.Show()
         return invalid
+    else if viewGroup = "section_filters" then
+        ' ljunkie -- filter selection screen here!
+        dialog = createPopupMenu(item)
+        dialog.Show()
+        return invalid
     else if viewGroup = "secondary" then
         ' these are subsections of a main section ( secondary )
         Debug("---- Creating secondary " + poster_grid + " view for contentType=" + tostr(contentType) + ", viewGroup=" + tostr(viewGroup))

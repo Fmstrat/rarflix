@@ -102,6 +102,34 @@ Function createFULLgridPaginatedLoader(container, initialLoadSize, pageSize, ite
     loader.names = []
     increment=pagesize
 
+    ' show header row for old filters if viewing "all"
+    headerRow = []
+    if item <> invalid and item.key = "all" and loader.server <> invalid and loader.sourceurl <> invalid then 
+        sectionKey = getBaseSectionKey(loader.sourceurl)
+        container = createPlexContainerForUrl(loader.server, invalid, sectionKey)
+        rawItems = container.GetMetadata() ' grab subsections for FULL grid. We might want to hide some (same index as container.GetKeys())
+
+        for index = 0 to rawItems.Count() - 1
+            if rawItems[index].secondary = invalid and tostr(rawItems[index].key) <> "all"then
+                headerRow.Push(rawItems[index])
+            end if
+        end for
+        ReorderItemsByKeyPriority(headerRow, RegRead("section_row_order", "preferences", ""))
+
+        ' Put Filters before any others
+        filterItem = {}
+        filterItem.key = sectionKey + "/filters"
+        filterItem.server = loader.server
+        filterItem.sourceurl = loader.server.serverurl + sectionKey + "/filters"
+        filterItem.name = "Filters"
+        filterItem.umtitle = "Filters"
+        filterItem.title = "Filters"
+        filterItem.viewGroup = "section_filters"
+        rfCDNthumb(filterItem,filterItem.name,invalid)
+        headerRow.Unshift(filterItem)
+
+    end if
+
     ' should we keep adding the sub sections? I think not - btw this code was only to test
     '    pscreen = m.viewcontroller.screens.peek().parentscreen
     '    if pscreen <> invalid then 
@@ -111,7 +139,7 @@ Function createFULLgridPaginatedLoader(container, initialLoadSize, pageSize, ite
     '         loader.names.Push("Sub Sections")
     '    end if
     ' end testing
-    'stop
+
     if totalsize <> invalid then 
         for index = 0 to totalsize.toInt() - 1 step increment
 
@@ -162,6 +190,31 @@ Function createFULLgridPaginatedLoader(container, initialLoadSize, pageSize, ite
     loader.LoadingItem = {
         title: "Loading..."
     }
+
+    ' add the special header row
+    if headerRow <> invalid and headerRow.count() > 0 then 
+        header_row = CreateObject("roAssociativeArray")
+        header_row.content = headerRow
+        header_row.loadStatus = 0 ' 0:Not loaded, 1:Partially loaded, 2:Fully loaded
+        header_row.key = "_subsec_"
+        header_row.name = firstof(item.title,"Sub Sections")
+        header_row.pendingRequests = 0
+        header_row.countLoaded = 0
+    
+        loader.contentArray.Unshift(header_row)
+        keys.Unshift(header_row.key)
+        loader.names.Unshift(header_row.name)
+        loader.focusrow = 1 ' we want to hide this row by default
+    end if
+
+    ' clean keys that should be "invalid"
+    for index = 0 to loader.contentArray.Count() - 1
+        status = loader.contentArray[index]
+        loader.names[index] = status.name
+        if status.key = "_search_"  or status.key = "_subsec_" then
+            status.key = invalid
+        end if
+    next
 
     return loader
 End Function
