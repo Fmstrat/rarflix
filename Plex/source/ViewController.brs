@@ -423,20 +423,20 @@ Function vcCreateScreenForItem(context, contextIndex, breadcrumbs, show=true) As
             grid_style = "flat-landscape"
             displaymode_grid = "photo-fit"
             focusrow = 2
-            Debug("---- override " + tostr(displayMode) + "/" + tostr(grid_style_photos) + " for section with content of " + tostr(item.type))
+            Debug("---- override " + tostr(displaymode_grid) + "/" + tostr(grid_style) + " for section with content of " + tostr(item.type))
         else if tostr(item.type) = "photo" then 
             ' Photo Section has it's own settings for DisplayMode and GridStyle
-            displayMode = RegRead("photoicon_displaymode", "preferences", "photo-fit")
+            displaymode_grid = RegRead("photoicon_displaymode", "preferences", "photo-fit")
             grid_style = grid_style_photos
             focusrow = 2
-            Debug("---- override " + tostr(displayMode) + "/" + tostr(grid_style_photos) + " for section with content of " + tostr(item.type))
+            Debug("---- override " + tostr(displaymode_grid) + "/" + tostr(grid_style) + " for section with content of " + tostr(item.type))
         else 
             if item.isHomeVideos = true then grid_style = "flat-16x9"
         end if
 
         ' focus on the second row if flat16x9 
         ' TODO(ljunkie) add other modes in here to make this logic more sound
-        if grid_style = "flat-16x9" or grid_style = "flat-16x9" then focusrow = 2
+        if grid_style = "flat-16x9" then focusrow = 2
 
         if NOT useFullGrid then 
             ' standard Grid screen - multiple rows
