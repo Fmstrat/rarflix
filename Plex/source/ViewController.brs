@@ -406,26 +406,67 @@ Function vcCreateScreenForItem(context, contextIndex, breadcrumbs, show=true) As
         if screen = invalid then return invalid
         screenName = "Audio Springboard"
     else if contentType = "section" then
-        ' Now done in gridscreen.brs -- when someone focus the row instead
-        'RegWrite("lastMachineID", item.server.machineID, "userinfo")
-        'RegWrite("lastSectionKey", item.key, "userinfo")
+        ' ljunkie - this has been modified quite a bit. Sections have always been a "grid". Users now have an option to use a Full Grid by default
 
         screenName = "Section: " + tostr(item.type)
+
+        ' check if section has the full grid enabled
+        if item <> invalid and item.ishomevideos = true then 
+            useFullGrid = (RegRead("rf_full_grid_homevideo", "preferences", "disabled") = "enabled")
+        else     
+            useFullGrid = (RegRead("rf_full_grid_"+tostr(item.type), "preferences", "disabled") = "enabled")
+        end if
+        Debug("Full Grid Enabled:"+tostr(useFullGrid) + " : " + tostr(item.type) + ": " + tostr(item.contenttype))
+
+        focusrow = invalid
         if tostr(item.type) = "artist" then 
-            Debug("---- override photo-fit/flat-square for section with content of " + tostr(item.type))
-            screen = createGridScreenForItem(item, m, "flat-landscape", "photo-fit")
-            if screen.loader.focusrow <> invalid then screen.loader.focusrow = 2 ' hide header row ( 5x3 )
+            grid_style = "flat-landscape"
+            displaymode_grid = "photo-fit"
+            focusrow = 2
+            Debug("---- override " + tostr(displayMode) + "/" + tostr(grid_style_photos) + " for section with content of " + tostr(item.type))
         else if tostr(item.type) = "photo" then 
             ' Photo Section has it's own settings for DisplayMode and GridStyle
             displayMode = RegRead("photoicon_displaymode", "preferences", "photo-fit")
+            grid_style = grid_style_photos
+            focusrow = 2
             Debug("---- override " + tostr(displayMode) + "/" + tostr(grid_style_photos) + " for section with content of " + tostr(item.type))
-            screen = createGridScreenForItem(item, m, grid_style_photos ,displayMode)
-            if screen.loader.focusrow <> invalid then screen.loader.focusrow = 2 ' hide header row ( 7x3 )
         else 
             if item.isHomeVideos = true then grid_style = "flat-16x9"
+        end if
+
+        ' focus on the second row if flat16x9 
+        ' TODO(ljunkie) add other modes in here to make this logic more sound
+        if grid_style = "flat-16x9" or grid_style = "flat-16x9" then focusrow = 2
+
+        if NOT useFullGrid then 
+            ' standard Grid screen - multiple rows
             screen = createGridScreenForItem(item, m, grid_style, displaymode_grid)
-            if grid_style = "flat-16x9" or grid_style = "flat-16x9" then 
-                screen.loader.focusrow = 2 ' hide header row ( 7x3 )
+            if focusrow <> invalid and screen.loader.focusrow <> invalid then screen.loader.focusrow = focusrow
+        else 
+            ' full grid screen - hoping mGo will become available at some point
+            Debug("---- using FULL GRID by default for this section type")
+           
+            ' show the user a notice about using a full grid (only once)
+            noticeRead = (RegRead("default_full_grid_notice", "notices", "0") <> "0")
+            if NOT noticeRead then 
+                RegWrite("default_full_grid_notice", "1", "notices")
+                dlg = createBaseDialog()
+                dlg.Title = "Full Grid Information"
+                dlg.Text = "You are entering All " + item.title + ". In this section, you can click up to see a hidden row to filter the items or choose a quick filter. The info key (*) on the remote may also be used to change the sorting or items."
+                dlg.Show(true)
+            end if
+
+            ' reset the section to use the /all endpoint 
+            ' - make sure we have the base section key ( strip any junk/subsections )
+            sectionKey = getBaseSectionKey(item.sourceurl + "/" + item.key)
+            item.sourceurl = item.server.serverurl + sectionKey
+            item.key = "all"
+
+            screen = createFULLGridScreen(item, m, grid_style, displaymode_grid)
+            if focusrow <> invalid and screen.loader.focusrow <> invalid then 
+                screen.loader.focusrow = focusrow
+            else 
+                screen.loader.focusrow = 1
             end if
         end if
     else if contentType = "playlists" then
