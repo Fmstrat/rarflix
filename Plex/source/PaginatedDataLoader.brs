@@ -295,7 +295,7 @@ Sub loaderRefreshData()
             end if
 
 
-            if item <> invalid and type(item.refresh) = "roFunction" then 
+            if (item <> invalid and type(item.refresh) = "roFunction") or (m.sortingForceReload <> invalid) then 
                 wkey = m.listener.contentarray[sel_row][sel_item].key
                 Debug("---- Refreshing metadata for item " + tostr(wkey) + " contentType: " + contentType)
                 if RegRead("rf_grid_dynamic", "preferences", "full") <> "full" then item.Refresh() ' refresh for pref of partial reload

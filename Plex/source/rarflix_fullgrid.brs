@@ -52,6 +52,14 @@ Function createFULLGridScreen(item, viewController, style = "flat-movie", SetDis
         grid_size = 4
     end if
 
+    ' apply the choosen filters if set for this section/server
+    if item.key = "all" then 
+        filterObj = getFilterParams(container.server,container.sourceurl)
+        if filterObj <> invalid then 
+            container.sourceurl = addFiltersToUrl(container.sourceurl,filterObj)
+        end if
+    end if
+
     obj.Loader = createFULLgridPaginatedLoader(container, grid_size, grid_size, item)
     obj.Loader.Listener = obj
     ' Don't play theme music on top of grid screens on the older Roku models.
