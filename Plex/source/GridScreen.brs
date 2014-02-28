@@ -496,7 +496,13 @@ Sub gridOnDataLoaded(row As Integer, data As Object, startItem As Integer, count
                 ' non-obvious reasons. Even without showing the dialog, closing
                 ' the screen has a bit of an ugly flash.
 
-                if m.Refreshing <> true then
+                ' ljunkie - not with allowing filters - empty grids are very possible
+                if m.isfullgrid = true then 
+                    dialog = createBaseDialog()
+                    dialog.Title = "Section Empty"
+                    dialog.Text = "This section doesn't contain any items."
+                    dialog.Show()
+                else if m.Refreshing <> true then
                     dialog = createBaseDialog()
                     dialog.Title = "Section Empty"
                     dialog.Text = "This section doesn't contain any items."
