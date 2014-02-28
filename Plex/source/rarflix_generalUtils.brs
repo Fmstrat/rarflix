@@ -111,32 +111,12 @@ function convertToFilter(server,url)
         return newurl
     end if
 
+    ' 1. get the base library section key
+    sectionKey = getBaseSectionKey(url)
+    if sectionKey = invalid then return invalid
 
-    ' determine the valid filters we can use -- not all older calls have an exact filtered call
-
-    ' 1. get the determine the section key we are in ( used later )
-    sectionKey = invalid
-    r = CreateObject("roRegex", "(/library/sections/\d+)", "")
-    wanted = r.Match(url)
-    if wanted[0] <> invalid then sectionKey = wanted[1]
-    if sectionKey = invalid then return url
-
-    ' 2. obtain the valid filter keys from the cache (or create the cache)
-    filterCacheKey = "filters_"+tostr(server.machineid)+tostr(sectionKey)
-    validFilters = GetGlobal(filterCacheKey)
-
-    ' 3. known valid filter cache doesn't exist yet -- create it
-    if validFilters = invalid then 
-        Debug("caching Valid filters for this section")
-        ' set cache to empty ( not invalid -- so we don't keep retrying )
-        GetGlobalAA().AddReplace(filterCacheKey, {})        
-        obj = createPlexContainerForUrl(server, "", sectionKey + "/filters")
-        if obj <> invalid then 
-            ' using an assoc array ( we might want more key/values later )
-            GetGlobalAA().AddReplace(filterCacheKey, obj.getmetadata())        
-            validFilters = GetGlobal(filterCacheKey)
-        end if
-    end if
+    ' 2-3. obtain the valid filter keys from the cache (or create the cache)
+    validFilters = getValidFilters(server,url)
 
     ' 4. we have checked the cache or made an api call -- return orig url if still invalid
     if validFilters = invalid or validFilters.count() = 0 then
@@ -253,4 +233,31 @@ function getNextEpisode(item,details=false)
     if metadata = invalid then Debug("getNextEpisode:: not found")
 
     return metadata
+end function
+
+function getValidFilters(server,sourceUrl)
+    if server = invalid or sourceUrl = invalid then return invalid
+
+    ' 1. get the base library section key
+    sectionKey = getBaseSectionKey(sourceUrl)
+    if sectionKey = invalid then return invalid
+
+    ' 2. obtain the valid filter keys from the cache (or create the cache)
+    filterCacheKey = "filters_"+tostr(server.machineid)+tostr(sectionKey)
+    validFilters = GetGlobal(filterCacheKey)
+
+    if validFilters = invalid then 
+        Debug("caching Valid Filters for this section")
+        ' set cache to empty ( not invalid -- so we don't keep retrying )
+        GetGlobalAA().AddReplace(filterCacheKey, {})        
+        obj = createPlexContainerForUrl(server, "", sectionKey + "/filters")
+        if obj <> invalid then 
+            ' using an assoc array ( we might want more key/values later )
+            GetGlobalAA().AddReplace(filterCacheKey, obj.getmetadata())        
+            validFilters = GetGlobal(filterCacheKey)
+        end if
+    end if
+
+    if validFilters = invalid then return invalid
+    return validFilters
 end function
