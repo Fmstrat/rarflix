@@ -274,6 +274,13 @@ Sub loaderRefreshData()
     if type(m.listener.contentarray) = "roArray" and m.listener.contentarray.count() >= sel_row then
         if type(m.listener.contentarray[sel_row]) = "roArray" and m.listener.contentarray[sel_row].count() >= sel_item then
             item = m.listener.contentarray[sel_row][sel_item]
+
+            ' include what is filtered in popout
+            if item <> invalid and tostr(item.viewgroup) = "section_filters" then 
+                item.description = getFilterDescription(item.server,item.sourceurl)
+                m.listener.Screen.SetContentListSubset(m.listener.selectedRow, m.listener.contentArray[m.listener.selectedRow], m.listener.focusedIndex, 1)
+            end if
+
             contentType = tostr(item.contenttype)
             isFullGrid = (m.listener.isfullgrid = true)
 
@@ -295,7 +302,7 @@ Sub loaderRefreshData()
             end if
 
 
-            if item <> invalid and type(item.refresh) = "roFunction" then 
+            if (item <> invalid and type(item.refresh) = "roFunction") or (m.sortingForceReload <> invalid) then 
                 wkey = m.listener.contentarray[sel_row][sel_item].key
                 Debug("---- Refreshing metadata for item " + tostr(wkey) + " contentType: " + contentType)
                 if RegRead("rf_grid_dynamic", "preferences", "full") <> "full" then item.Refresh() ' refresh for pref of partial reload

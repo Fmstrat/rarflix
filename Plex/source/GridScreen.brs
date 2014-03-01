@@ -3,6 +3,10 @@
 '*
 
 Function createGridScreen(viewController, style=RegRead("rf_grid_style", "preferences", "flat-movie"), upBehavior="exit", SetDisplayMode = "scale-to-fit", hideHeaderText = false) As Object
+    ' use a facade for instant feedback
+    facade = CreateObject("roGridScreen")
+    facade.Show()
+
     Debug("######## Creating Grid Screen " + tostr(style) + ":" + tostr(SetDisplayMode) + "  ########")
 
     if tostr(style) = "flat-portrait" and GetGlobal("IsHD") <> true then style = "flat-movie"
@@ -51,6 +55,8 @@ Function createGridScreen(viewController, style=RegRead("rf_grid_style", "prefer
     grid.SetUpBehaviorAtTopRow(upBehavior)
 
     ' Standard properties for all our Screen types
+    screen.facade = facade
+
     screen.Screen = grid
     screen.DestroyAndRecreate = gridDestroyAndRecreate
     screen.Show = showGridScreen
@@ -118,7 +124,7 @@ Function showGridScreen() As Integer
         dialog.Show(true) ' blocking
 
         m.popOnActivate = true
-
+        if m.facade <> invalid then m.facade.Close()
         return -1
     end if
 
@@ -162,6 +168,7 @@ Function showGridScreen() As Integer
 
     m.Screen.Show()
     if facade <> invalid then facade.Close()
+    if m.facade <> invalid then m.facade.Close()
 
     ' Only two rows and five items per row are visible on the screen, so
     ' don't load much more than we need to before initially showing the
@@ -239,7 +246,18 @@ Function gridHandleMessage(msg) As Boolean
                 if item.ContentType = "series" then
                     breadcrumbs = [item.Title]
                 else if item.ContentType = "section" then
-                    breadcrumbs = [item.server.name, item.Title]
+                    ' include the sorting if not default
+                    dummyObj = {}
+                    dummyObj.server = item.server
+                    dummyObj.sourceurl = item.sourceurl
+                    dummyObj.getSortString = getSortString                        
+                    dummyObj.getSortKey = getSortKey
+                    defaultSort = RegRead("section_sort", "preferences","titleSort:asc")
+                    if defaultSort <> dummyObj.getSortKey() then 
+                        breadcrumbs = [item.title, dummyObj.getSortString()]
+                    else 
+                        breadcrumbs = [item.server.name, item.Title]
+                    end if
                 else
                     breadcrumbs = [m.Loader.GetNames()[msg.GetIndex()], item.Title]
                 end if
@@ -280,6 +298,12 @@ Function gridHandleMessage(msg) As Boolean
             ' ljunkie - save any focused item for the screen saver
             if item <> invalid and item.SDPosterURL <> invalid and item.HDPosterURL <> invalid then
                 SaveImagesForScreenSaver(item, ImageSizes(item.ViewGroup, item.Type))
+            end if
+
+            ' include what is filtered in popout
+            if item <> invalid and tostr(item.viewgroup) = "section_filters" then 
+                item.description = getFilterDescription(item.server,item.sourceurl)
+                m.Screen.SetContentListSubset(m.selectedRow, m.contentArray[m.selectedRow], m.focusedIndex, 1)
             end if
 
             if m.ignoreNextFocus then
@@ -496,13 +520,7 @@ Sub gridOnDataLoaded(row As Integer, data As Object, startItem As Integer, count
                 ' non-obvious reasons. Even without showing the dialog, closing
                 ' the screen has a bit of an ugly flash.
 
-                ' ljunkie - not with allowing filters - empty grids are very possible
-                if m.isfullgrid = true then 
-                    dialog = createBaseDialog()
-                    dialog.Title = "Section Empty"
-                    dialog.Text = "This section doesn't contain any items."
-                    dialog.Show()
-                else if m.Refreshing <> true then
+                if m.Refreshing <> true then
                     dialog = createBaseDialog()
                     dialog.Title = "Section Empty"
                     dialog.Text = "This section doesn't contain any items."
@@ -520,8 +538,17 @@ Sub gridOnDataLoaded(row As Integer, data As Object, startItem As Integer, count
         ' the initial rows are empty, we need to keep loading until we find a
         ' row with data.
         if row < m.contentArray.Count() - 1 then
-            'Debug("----- ... Loading more content: from row " + tostr(row+1) + " with 0 more ")
-            m.Loader.LoadMoreContent(row + 1, 0)
+            if m.isFullGrid = true then 
+                Debug("----- ... stop Loading more content: from row " + tostr(row+1) + " with 0 more ")
+                for index = row to m.contentArray.Count()-1 
+                    if m.FullGridTimer <> invalid then m.FullGridTimer.active = false
+                    Debug("----- ... set row invisable due to zero content" + tostr(index))
+                    m.Screen.SetListVisible(index, false)
+                end for
+            else 
+                Debug("----- ... Loading more content: from row " + tostr(row+1) + " with 0 more ")
+                m.Loader.LoadMoreContent(row + 1, 0)
+            end if
         end if
 
         return

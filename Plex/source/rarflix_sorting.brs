@@ -243,18 +243,18 @@ sub gridSortSection(grid,sortKey = invalid)
     if sourceurl <> invalid then 
         re = CreateObject("roRegex", "(sort=[^\&\?]+)", "i")
         if re.IsMatch(sourceurl) then 
-            if instr(1, sortKey, "titleSort:asc") > 0 then 
-                re = CreateObject("roRegex", "([\?\&]sort=[^\&\?]+)", "i")
-                sourceurl = re.ReplaceAll(sourceurl, "")
-            else 
+            'if instr(1, sortKey, "titleSort:asc") > 0 then 
+            '    re = CreateObject("roRegex", "([\?\&]sort=[^\&\?]+)", "i")
+            '    sourceurl = re.ReplaceAll(sourceurl, "")
+            'else 
                 sourceurl = re.ReplaceAll(sourceurl, "sort="+sortKey)
-            end if
+            'end if
         else 
-            if instr(1, sortKey, "titleSort:asc") = 0 then 
+            'if instr(1, sortKey, "titleSort:asc") = 0 then 
                 f = "?"
                 if instr(1, sourceurl, "?") > 0 then f = "&"    
                 sourceurl = sourceurl + f + "sort="+sortKey
-            end if
+            'end if
         end if
         grid.loader.sourceurl = sourceurl
         grid.loader.sortingForceReload = true
@@ -269,18 +269,18 @@ sub gridSortSection(grid,sortKey = invalid)
             if contentArray[index].key <> invalid then 
                 re = CreateObject("roRegex", "(sort=[^\&\?]+)", "i")
                 if re.IsMatch(contentArray[index].key) then
-                    if instr(1, sortKey, "titleSort:asc") > 0 then 
-                        re = CreateObject("roRegex", "([\?\&]sort=[^\&\?]+)", "i")
-                        contentArray[index].key = re.ReplaceAll(contentArray[index].key, "")
-                    else 
+                    'if instr(1, sortKey, "titleSort:asc") > 0 then 
+                    '    re = CreateObject("roRegex", "([\?\&]sort=[^\&\?]+)", "i")
+                    '    contentArray[index].key = re.ReplaceAll(contentArray[index].key, "")
+                    'else 
                         contentArray[index].key = re.ReplaceAll(contentArray[index].key, "sort="+sortKey)
-                    end if
+                    'end if
                 else 
-                    if instr(1, sortKey, "titleSort:asc") = 0 then 
+                    'if instr(1, sortKey, "titleSort:asc") = 0 then 
                         f = "?"
                         if instr(1, contentArray[index].key, "?") > 0 then f = "&"    
                         contentArray[index].key = contentArray[index].key + f + "sort="+sortKey
-                    end if
+                    'end if
                 end if
              end if
         end for
@@ -292,16 +292,32 @@ end sub
 ' not be added to the dialog unless valid
 sub dialogSetSortingButton(dialog,obj) 
     if obj.isfullgrid = true and type(obj.screen) = "roGridScreen" then 
-        re = CreateObject("roRegex", "/all|/firstCharacter", "i")
-        if obj.loader <> invalid and obj.loader.sourceurl <> invalid and re.IsMatch(obj.loader.sourceurl) then
-            sort = getSortingOption(obj.loader.server,obj.loader.sourceurl)
-            if sort <> invalid and sort.item <> invalid and sort.item.title <> invalid then 
-                dialog.SetButton("SectionSorting", "Sorting: " + sort.item.title)
+        reFILT = CreateObject("roRegex", "/all", "i")
+        reSORT = CreateObject("roRegex", "/all|/firstCharacter", "i")
+        if obj.loader <> invalid and obj.loader.sourceurl <> invalid then 
+            ' include the sorting options all the time
+            dummyObj = {}
+            dummyObj.server = obj.loader.server
+            dummyObj.sourceurl = obj.loader.sourceurl
+            dummyObj.getSortString = getSortString                        
+            dummyObj.getSortKey = getSortKey
+
+            if reFILT.IsMatch(obj.loader.sourceurl) then
+                if getFilterParams(obj.loader.server,obj.loader.sourceurl).hasFilters = true then 
+                    dialog.SetButton("gotoFilters", "Filters: Enabled, Sort: " + dummyObj.getSortString())
+                else 
+                    dialog.SetButton("gotoFilters", "Filters: None, Sort: " + dummyObj.getSortString())
+                end if
+            else if reSORT.IsMatch(obj.loader.sourceurl) then
+                sort = getSortingOption(obj.loader.server,obj.loader.sourceurl)
+                if sort <> invalid and sort.item <> invalid and sort.item.title <> invalid then 
+                    dialog.SetButton("SectionSorting", "Sorting: " + sort.item.title)
+                end if
             end if
         else 
             ' TODO(ljunkie) - think about removing this -- waste of screen space
             ' however one my be wondering why the sorting option isn't showing up.
-            dialog.SetButton("SectionSortingDisabled", "Sorting: not available")
+            'dialog.SetButton("SectionSortingDisabled", "Sorting: not available")
         end if
     end if
 end sub

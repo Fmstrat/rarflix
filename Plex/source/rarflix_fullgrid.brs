@@ -1,6 +1,4 @@
 Function createFULLGridScreen(item, viewController, style = "flat-movie", SetDisplayMode = "scale-to-fit") As Object
-    dialog=ShowPleaseWait("Please wait","")
-
     ' hide header text of each row ( set color to BGcolor )
     hideHeaderText = false
     if RegRead("rf_fullgrid_hidetext", "preferences", "disabled") = "enabled" then hideHeaderText = true
@@ -10,8 +8,11 @@ Function createFULLGridScreen(item, viewController, style = "flat-movie", SetDis
     Debug("---- Creating FULL grid with style" + tostr(style) + " SetDisplayMode:" + tostr(SetDisplayMode))
 
     obj = createGridScreen(viewController, style, RegRead("rf_up_behavior", "preferences", "exit"), SetDisplayMode, hideHeaderText)
-    obj.Item = item
+    obj.OriginalItem = item
+    obj.grid_style = style
+    obj.displaymode_grid = SetDisplayMode 
     obj.isFullGrid = true
+
     ' depending on the row we have, we might alrady have filters in place. Lets remove the bad ones (X-Plex-Container-Start and X-Plex-Container-Size)
     re=CreateObject("roRegex", "[&\?]X-Plex-Container-Start=\d+|[&\?]X-Plex-Container-Size=\d+|now_playing", "i")
     if item.key = invalid then return invalid
@@ -35,6 +36,7 @@ Function createFULLGridScreen(item, viewController, style = "flat-movie", SetDis
 
     'container = createPlexContainerForUrl(item.server, item.sourceUrl, detailKey)
     '  just need a quick way to create a plexContainer request with 0 results returned ( to be quick )
+    ' apply the choosen filters if set for this section/server
     container = createPlexContainerForUrlSizeOnly(item.server, item.sourceUrl ,detailKey)    
 
     ' grid posters per row ( this should cover all of them as of 2013-03-04)
@@ -52,6 +54,16 @@ Function createFULLGridScreen(item, viewController, style = "flat-movie", SetDis
         grid_size = 4
     end if
 
+    ' apply the choosen filters if set for this section/server
+    if item.key = "all" then 
+        filterObj = getFilterParams(container.server,container.sourceurl)
+        obj.hasFilters = filterObj.hasFilters
+        if obj.hasFilters = true then 
+            container.hasFilters = obj.hasFilters
+            container.sourceurl = addFiltersToUrl(container.sourceurl,filterObj)
+        end if
+    end if
+
     obj.Loader = createFULLgridPaginatedLoader(container, grid_size, grid_size, item)
     obj.Loader.Listener = obj
     ' Don't play theme music on top of grid screens on the older Roku models.
@@ -59,13 +71,25 @@ Function createFULLGridScreen(item, viewController, style = "flat-movie", SetDis
     if item.theme <> invalid AND GetGlobal("rokuVersionArr", [0])[0] >= 4 AND NOT AudioPlayer().IsPlaying AND RegRead("theme_music", "preferences", "loop") <> "disabled" then
         AudioPlayer().PlayThemeMusic(item)
     end if
-    obj.hasWaitdialog = dialog
+
     return obj
 End Function
 
 function createPlexContainerForUrlSizeOnly(server, sourceUrl, detailKey) 
-    Debug("createPlexContainerForUrlSizeOnly:: determine size of xml results -- X-Plex-Container-Size=0")
+    Debug("createPlexContainerForUrlSizeOnly:: determine size of xml results -- X-Plex-Container-Size=0 ; " + tostr(sourceUrl) + ", " + tostr(detailKey))
+
+
     httpRequest = server.CreateRequest(sourceurl, detailKey)
+
+    fullSourceUrl = httpRequest.GetUrl()
+    if detailKey = "all" then 
+        filterObj = getFilterParams(server,fullSourceUrl)
+        if filterObj <> invalid then 
+            fullSourceUrl = addFiltersToUrl(fullSourceUrl,filterObj)
+            httpRequest.seturl(fullSourceUrl)
+        end if
+    end if
+
     remyplex = CreateObject("roRegex", "my.plexapp.com|plex.tv", "i")        
     Debug("Fetching content from server at query URL: " + tostr(httpRequest.GetUrl()))
     ' used to be 60 seconds, but upped to 90 -- I still think this is too high. If the server isn't responding with to a request of 0 items, something must be wrong. 
@@ -97,34 +121,49 @@ Function createFULLgridPaginatedLoader(container, initialLoadSize, pageSize, ite
     loader.initialLoadSize = initialLoadSize
     loader.pageSize = pageSize
     loader.contentArray = []
+ 
+    if totalsize = invalid or totalsize.toInt() < 1 then 
+        dialog = createBaseDialog()
+        if container.hasFilters = true then 
+            dialog.Title = "No Results"
+            dialog.Text = "Please change or clear your filters"
+        else 
+            dialog.Title = "No Results"
+            dialog.Text = "This section doesn't contain any items"
+        end if 
+        dialog.Show(true)
+    end if
 
     keys = []
     loader.names = []
     increment=pagesize
 
-    ' show header row for old filters if viewing "all"
     headerRow = []
-    if item <> invalid and item.key = "all" and loader.server <> invalid and loader.sourceurl <> invalid then 
+    if item <> invalid and item.usefullgrid = true and item.key = "all" and loader.server <> invalid and loader.sourceurl <> invalid then 
         sectionKey = getBaseSectionKey(loader.sourceurl)
         container = createPlexContainerForUrl(loader.server, invalid, sectionKey)
         rawItems = container.GetMetadata() ' grab subsections for FULL grid. We might want to hide some (same index as container.GetKeys())
 
         for index = 0 to rawItems.Count() - 1
-            if rawItems[index].secondary = invalid and tostr(rawItems[index].key) <> "all"then
+            'if rawItems[index].secondary = invalid and tostr(rawItems[index].key) <> "all"then
+            if tostr(rawItems[index].key) <> "all"then
                 headerRow.Push(rawItems[index])
             end if
         end for
         ReorderItemsByKeyPriority(headerRow, RegRead("section_row_order", "preferences", ""))
 
         ' Put Filters before any others
+        imageDir = GetGlobalAA().Lookup("rf_theme_dir")
         filterItem = {}
-        filterItem.key = sectionKey + "/filters"
+        filterItem.key = "_section_filters_"
         filterItem.server = loader.server
         filterItem.sourceurl = loader.server.serverurl + sectionKey + "/filters"
         filterItem.name = "Filters"
-        filterItem.umtitle = "Filters"
-        filterItem.title = "Filters"
+        filterItem.umtitle = "Enabled Filters & Sorting"
+        filterItem.title = filterItem.umtitle
         filterItem.viewGroup = "section_filters"
+        filterItem.SDPosterURL = imageDir + "gear.png"
+        filterItem.HDPosterURL = imageDir + "gear.png"
         rfCDNthumb(filterItem,filterItem.name,invalid)
         headerRow.Unshift(filterItem)
 

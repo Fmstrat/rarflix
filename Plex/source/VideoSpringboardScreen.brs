@@ -499,6 +499,14 @@ Function videoDialogHandleButton(command, data) As Boolean
         context.OnAfterClose = CloseScreenUntilHomeVisible
         context.OnAfterClose()
         closeDialog = true
+    else if command = "gotoFilters" then
+        screen = createFilterSortListScreen(m.parentscreen.originalitem,obj)
+        screenName = "Grid Filters"
+        screen.ScreenName = screenName
+        breadcrumbs =  ["Filters: " + m.parentscreen.originalitem.title]
+        m.ViewController.InitializeOtherScreen(screen, breadcrumbs)
+        screen.Show()
+        closeDialog = true
     else if command = "SectionSorting" then
         dialog = createGridSortingDialog(m,obj)
         if dialog <> invalid then dialog.Show(true)

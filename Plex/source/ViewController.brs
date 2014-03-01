@@ -443,6 +443,7 @@ Function vcCreateScreenForItem(context, contextIndex, breadcrumbs, show=true) As
             screen = createGridScreenForItem(item, m, grid_style, displaymode_grid)
             if focusrow <> invalid and screen.loader.focusrow <> invalid then screen.loader.focusrow = focusrow
         else 
+            item.useFullGrid = true
             ' full grid screen - hoping mGo will become available at some point
             Debug("---- using FULL GRID by default for this section type")
            
@@ -503,11 +504,10 @@ Function vcCreateScreenForItem(context, contextIndex, breadcrumbs, show=true) As
         dialog = createPopupMenu(item)
         dialog.Show()
         return invalid
-    else if viewGroup = "section_filters" then
-        ' ljunkie -- filter selection screen here!
-        dialog = createPopupMenu(item)
-        dialog.Show()
-        return invalid
+    else if item.key = "_section_filters_" then
+        screen = createFilterSortListScreen(item,m.screens.peek())
+        breadcrumbs =  ["Filters: " + item.title]
+        screenName = "Grid Filters"
     else if viewGroup = "secondary" then
         ' these are subsections of a main section ( secondary )
         Debug("---- Creating secondary " + poster_grid + " view for contentType=" + tostr(contentType) + ", viewGroup=" + tostr(viewGroup))
@@ -630,6 +630,8 @@ Function vcCreateScreenForItem(context, contextIndex, breadcrumbs, show=true) As
 
     if show then screen.Show()
 
+    ' facades and wait dialogs
+    if item <> invalid and item.facade <> invalid then item.facade.close()
     if screen.hasWaitdialog <> invalid then screen.hasWaitdialog.close()
 
     ' set the inital focus row if we have set it ( normally due to the sub section row being added - look at the createpaginateddataloader )
@@ -1395,7 +1397,7 @@ Sub vcAddBreadcrumbs(screen, breadcrumbs)
         if count >= 2 then
             breadcrumbs = [m.breadcrumbs[count-2], m.breadcrumbs[count-1]]
         else
-            breadcrumbs = m.breadcrumbs[0]
+            breadcrumbs = [m.breadcrumbs[0]]
         end if
 
         m.breadcrumbs.Append(breadcrumbs)
@@ -1660,7 +1662,12 @@ Sub InitWebServer(vc)
 End Sub
 
 Sub createScreenForItemCallback()
-    GetViewController().CreateScreenForItem(m.Item, invalid, [firstOf(m.Heading, "")])
+    if m.breadcrumbs = invalid then 
+        breadcrumbs = [firstOf(m.Heading, "")]
+    else 
+        breadcrumbs = m.breadcrumbs
+    end if
+    GetViewController().CreateScreenForItem(m.Item, invalid, breadcrumbs)
 End Sub
 
 
