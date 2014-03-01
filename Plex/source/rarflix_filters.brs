@@ -1,16 +1,15 @@
 '*
 '* TESTING...
 '*
-Function createFilterSortListScreen(item, gridScreen) As Object
+Function createFilterSortListScreen(item, gridScreen, typeKey=invalid) As Object
 
     obj = createBasePrefsScreen(GetViewController())
     facade = CreateObject("roGridScreen")
     obj.facade = facade
     obj.facade.Show()
+    obj.filterItem = item
 
     obj.Screen.SetHeader("Filter Options")
-'    obj.parentscreen = GetViewController().screens.peek()
-    ' we might call this from a dialog - so we have to pass it
     obj.parentscreen = gridScreen
 
     obj.HandleMessage = prefsFilterHandleMessage
@@ -19,23 +18,29 @@ Function createFilterSortListScreen(item, gridScreen) As Object
 
     ' other screen options in the filter/sort screen
     obj.createFilterListScreen = createFilterListScreen
+    obj.createTypeListScreen = createTypeListScreen
 
     obj.filterOnClose = true
+    obj.forcefilterOnClose = NOT(typeKey=invalid)
+
     obj.clearFilters = clearFilterList
     obj.getFilterKeyString = getFilterKeyString
     obj.getSortString = getSortString
 
+    ' update and get filter keys
+    obj.cacheKeys = getFilterSortCacheKeys(item.server,item.sourceurl,typeKey)
+    if obj.cachekeys = invalid then return invalid
+    
     filterObj = getFilterParams(item.server,item.sourceurl)
-    obj.intialFilterParamsString = filterObj.filterParamsString
+    obj.initialFilterParamsString = filterObj.filterParamsString
 
     obj.sourceUrl = item.sourceUrl
     obj.server = item.server
     obj.item = item
 
-    ' filters - in use for this server/section (saved per session)
-    obj.filterCacheKey = getFilterCachekey(item.server,item.sourceurl)
-    obj.filterValues = GetGlobal(obj.filterCacheKey)
-
+    ' obtain any filter in place - state saved per session per section
+    obj.filterValues = GetGlobal(obj.cachekeys.filterValuesCacheKey)
+    print obj.cachekeys.filterValuesCacheKey
     if obj.filterValues = invalid then obj.filterValues = {}
 
     ' filters - valid for use (cache) for base url
@@ -45,6 +50,12 @@ Function createFilterSortListScreen(item, gridScreen) As Object
         return invalid
     end if   
 
+    obj.defaultTypes = defaultTypes(item.type,obj.cacheKeys.typeKey)
+    print obj.cacheKeys.typeKey
+    print obj.defaultTypes
+    if obj.defaultTypes <> invalid then 
+        obj.AddItem({title: "Type",}, "create_type_screen", getDefaultType(obj.defaultTypes))
+    end if
     obj.AddItem({title: "Filters"}, "create_filter_screen", obj.getFilterKeyString())
     obj.AddItem({title: "Sorting"}, "create_sort_screen", obj.getSortString())
     obj.AddItem({title: "Clear Filters"}, "clear_filters")
@@ -52,6 +63,11 @@ Function createFilterSortListScreen(item, gridScreen) As Object
 
     return obj
 End Function
+
+function getDefaultType(types)
+    if types <> invalid and types.title <> invalid then return types.title
+    return ""
+end function
 
 function getSortString()
     sort = getSortingOption(m.server,m.sourceurl)
@@ -95,8 +111,8 @@ Function createFilterListScreen() As Object
     obj.createSubFilterListScreen = createSubFilterListScreen
 
     ' filters - in use for this server/section (saved per session)
-    obj.filterCacheKey = obj.parentscreen.filterCacheKey
     obj.filterValues = obj.parentscreen.filterValues
+    obj.cacheKeys = obj.parentscreen.cacheKeys
 
     ' filters - valid for use (cache) for base url
     obj.validFilters = obj.parentscreen.ValidFilters
@@ -130,6 +146,28 @@ Function createFilterListScreen() As Object
     end for
 
     obj.AddItem({title: "Close"}, "close")
+
+    return obj
+End Function
+
+
+Function createTypeListScreen() As Object
+    obj = createBasePrefsScreen(GetViewController())
+
+    obj.Screen.SetHeader("Type Options")
+    obj.parentscreen = m
+
+    obj.HandleMessage = prefsFilterHandleMessage
+    obj.Activate = prefsFilterSortActivate
+    obj.refreshOnActivate = true
+
+    for index = 0 to m.defaultTypes.values.count()-1
+        item = m.defaultTypes.values[index]
+        if item.key = m.defaultTypes.key then focusedIndex = index
+        obj.AddItem({title: item.title, key: item.key}, "filter_type_toggle")
+    end for
+ 
+    if focusedIndex <> invalid then obj.screen.SetFocusedListItem(focusedIndex)
 
     return obj
 End Function
@@ -169,7 +207,6 @@ Function createSubFilterListScreen(key) As Object
     end for 
 
     obj.AddItem({title: "Close"}, "close")
-    ' obj.AddItem({title: filter.title, key: filter.key, type: filter.filterType}, "boolean", filterList(obj.filters[filter.key]))
 
     facade.close()
     return obj
@@ -219,7 +256,15 @@ Function prefsFilterHandleMessage(msg) As Boolean
         handled = true
 
         if msg.isScreenClosed() then
-             if m.filterOnClose = true then 
+
+             if m.callBackItem <> invalid then 
+                Debug("filter type changed - recreate the list screen")
+                'set the call back before we pop the screen
+                callback = m.CallBackItem
+                GetViewController().afterCloseCallback = callback
+             else if m.filterOnClose = true then 
+                GetGlobalAA().AddReplace(m.cachekeys.filterValuesCacheKey,m.filterValues)
+
                 filterObj = getFilterParams(m.server,m.sourceurl)
                 dummyObj = {}
                 dummyObj.server = m.parentscreen.originalitem.server
@@ -230,7 +275,8 @@ Function prefsFilterHandleMessage(msg) As Boolean
                 sortText = invalid
                 if defaultSort <> dummyObj.getSortKey() then sortText = dummyObj.getSortString()
 
-                if m.intialFilterParamsString <> filterObj.filterParamsString then 
+                if (m.initialFilterParamsString <> filterObj.filterParamsString) or m.forcefilterOnClose = true then 
+                    Debug("filter options or type changed -- refreshing the grid (new)")
                     ' recreate the grid screen with a call back
                     m.ViewController.PopScreen(m)
 
@@ -238,7 +284,7 @@ Function prefsFilterHandleMessage(msg) As Boolean
                     callback.Item = m.parentscreen.originalitem
 
                     ' refresh the breadcrumbs
-                    if filterObj.hasFIlters = true then 
+                    if filterObj.hasFilters = true then 
                          callback.breadcrumbs = [callback.Item.title,"Filters Enabled"]
                     else if sortText <> invalid then 
                          callback.breadcrumbs = [callback.Item.title,sortText]
@@ -248,15 +294,14 @@ Function prefsFilterHandleMessage(msg) As Boolean
 
                     callback.facade = m.facade
                     callback.OnAfterClose = createScreenForItemCallback
-
                     GetViewController().afterCloseCallback = callback
                     m.parentscreen.screen.Close()
                     return true
 
                 else 
-
+                    Debug("filter options and type did not change (sorting may have and will reload if needed)")
                     ' refresh the breadcrumbs
-                    if filterObj.hasFIlters = true then 
+                    if filterObj.hasFilters = true then 
                         m.parentscreen.Screen.SetBreadcrumbText(m.parentscreen.originalitem.title,"Filters Enabled")
                     else if sortText <> invalid then 
                         m.parentscreen.Screen.SetBreadcrumbText(m.parentscreen.originalitem.title, sortText)
@@ -273,14 +318,41 @@ Function prefsFilterHandleMessage(msg) As Boolean
         else if msg.isListItemSelected() then
             m.FocusedIndex = msg.GetIndex()
             command = m.GetSelectedCommand(m.FocusedIndex)
+            print command
             if command = "close" then
                 m.Screen.Close()
             else if command = "clear_filters" then
                 m.ClearFilters()
                 m.Activate(m)
+            else if command = "filter_type_toggle" then
+                facade = CreateObject("roGridScreen")
+                facade.show()
+                
+                item = m.contentarray[m.FocusedIndex]
+
+                ' clear any filters
+                m.parentscreen.ClearFilters()
+                m.screen.close()
+
+                ' recreate the list screen with a callback
+                callback = CreateObject("roAssociativeArray")
+                callback.Item = m.parentscreen.filterItem
+                callback.Item.typeKey = item.key
+                callback.breadcrumbs = ["","filter options"]
+                callback.facade = facade
+                callback.OnAfterClose = createScreenForItemCallback
+
+                ' set the callback and close the list screen
+                m.parentscreen.callbackitem = callback
+                m.parentscreen.screen.Close()
             else if command = "create_filter_screen" then
                 screen = m.createFilterListScreen()
                 screen.ScreenName = "Filter Options"
+                GetViewController().InitializeOtherScreen(screen, invalid)
+                screen.screen.show()
+            else if command = "create_type_screen" then
+                screen = m.createTypeListScreen()
+                screen.ScreenName = "Content Type Options"
                 GetViewController().InitializeOtherScreen(screen, invalid)
                 screen.screen.show()
             else if command = "create_sort_screen" then
@@ -345,7 +417,7 @@ End Function
 
 Sub prefsFilterActivate(priorScreen)
     ' save the filters for the session ( per section )
-    GetGlobalAA().AddReplace(m.filterCacheKey, m.filterValues)
+    GetGlobalAA().AddReplace(m.cachekeys.filterValuesCacheKey,m.filterValues)
 
     for index = 0 to m.contentarray.count()-1
         item = m.contentarray[index]
@@ -368,6 +440,8 @@ Sub prefsFilterSortActivate(priorScreen)
             m.AppendValue(index, m.getFilterKeyString())
         else if command = "create_sort_screen" then 
             m.AppendValue(index, m.getSortString())
+        else if command = "create_type_screen" then 
+            m.AppendValue(index, getDefaultType(m.defaultTypes))
         end if
 
     end for
@@ -377,18 +451,22 @@ End Sub
 function getFilterParams(server,sourceUrl)
     ' always pass back a valid object
     obj = {}
-    obj.sectionKey = getBaseSectionKey(sourceurl)
     obj.filterParamsString = ""
     obj.filterKeysString = ""
     obj.hasFilters = false
     obj.filterParams = []
     obj.filterKeys = []
+    obj.cacheKeys = getFilterSortCachekeys(server,sourceurl)
 
-    if obj.sectionKey = invalid then return obj
+    if obj.cachekeys = invalid then return obj
 
     ' obtain any filter in place - state saved per session per section
-    obj.filterCacheKey = "filter_inuse_"+tostr(server.machineid)+tostr(obj.sectionKey)
-    obj.filterValues = GetGlobal(obj.filterCacheKey)
+    obj.filterValues = GetGlobal(obj.cachekeys.filterValuesCacheKey)
+
+    ' type added here - it's not really a filter but will ONLY be changed during the filter process
+    if obj.cacheKeys.typeKey <> invalid then
+        obj.filterParams.Push("type="+tostr(obj.cacheKeys.typeKey))
+    end if
 
     for each key in obj.filterValues 
         item = obj.filterValues[key]
@@ -435,6 +513,9 @@ function getFilterParams(server,sourceUrl)
     end for
 
     obj.hasFilters = (obj.filterParams.count() > 0)
+    if obj.filterParams.count() = 1 and obj.cacheKeys.typeKey <> invalid then
+        obj.hasFilters = false
+    end if
 
     return obj
 end function
@@ -450,6 +531,10 @@ function addFiltersToUrl(sourceurl,filterObj)
         sourceurl = re.ReplaceAll(sourceurl, "")
     end for 
 
+    ' always clear type - either it will be in the filterParamsString or not..
+    re = CreateObject("roRegex", "([\&\?]type=[^\&\?]+)", "i")
+    sourceurl = re.ReplaceAll(sourceurl, "")
+
     ' need a better way to to this... 
     re = CreateObject("roRegex", "/all&", "i")
     sourceurl = re.ReplaceAll(sourceurl, "/all?")
@@ -461,19 +546,6 @@ function addFiltersToUrl(sourceurl,filterObj)
 
     return sourceurl
 end function
-
-function getFilterCachekey(server,sourceUrl)
-    if server = invalid or sourceUrl = invalid then return invalid
-
-    ' get base section from url
-    sectionKey = getBaseSectionKey(sourceUrl)
-    if sectionKey = invalid then return invalid
-
-    ' obtain any filter in place - state saved per session per section
-    filterCacheKey = "filter_inuse_"+tostr(server.machineid)+tostr(sectionKey)
-    return filterCacheKey
-end function
-
 
 function getFilterDescription(server,sourceurl)
     description = ""
@@ -534,3 +606,49 @@ end function
 '
 'end sub
 '
+
+function createSectionFilterItem(server,sourceurl,itemType)
+    sectionKey = getBaseSectionKey(sourceurl)
+    imageDir = GetGlobalAA().Lookup("rf_theme_dir")
+    filterItem = {}
+    filterItem.key = "_section_filters_"
+    filterItem.type = itemType
+    filterItem.server = server
+    filterItem.sourceurl = sourceurl + sectionKey + "/filters"
+    filterItem.name = "Filters"
+    filterItem.umtitle = "Enabled Filters & Sorting"
+    filterItem.title = filterItem.umtitle
+    filterItem.viewGroup = "section_filters"
+    filterItem.SDPosterURL = imageDir + "gear.png"
+    filterItem.HDPosterURL = imageDir + "gear.png"
+    rfCDNthumb(filterItem,filterItem.name,invalid)
+    print filterItem
+    return filterItem
+end function
+
+
+function getValidFilters(server,sourceUrl)
+    if server = invalid or sourceUrl = invalid then return invalid
+
+    cacheKeys = getFilterSortCacheKeys(server,sourceurl)
+    validFilters = GetGlobal(cacheKeys.filterCacheKey)
+    sectionKey = cacheKeys.sectionKey
+
+    if validFilters = invalid then 
+        Debug("caching Valid Filters for this section")
+        ' set cache to empty ( not invalid -- so we don't keep retrying )
+        GetGlobalAA().AddReplace(cacheKeys.filterCacheKey, {})        
+        typeKey = "?type="+tostr(cacheKeys.typeKey)
+        if cacheKeys.typeKey = invalid then typeKey = ""
+        obj = createPlexContainerForUrl(server, "", sectionKey + "/filters" + typeKey)
+        if obj <> invalid then 
+            ' using an assoc array ( we might want more key/values later )
+            GetGlobalAA().AddReplace(cacheKeys.filterCacheKey, obj.getmetadata())        
+            validFilters = GetGlobal(cacheKeys.filterCacheKey)
+        end if
+    end if
+
+    if validFilters = invalid or validFilters.count() = 0 then return invalid
+    return validFilters
+end function
+

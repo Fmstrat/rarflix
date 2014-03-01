@@ -505,7 +505,7 @@ Function vcCreateScreenForItem(context, contextIndex, breadcrumbs, show=true) As
         dialog.Show()
         return invalid
     else if item.key = "_section_filters_" then
-        screen = createFilterSortListScreen(item,m.screens.peek())
+        screen = createFilterSortListScreen(item,m.screens.peek(),item.typeKey)
         breadcrumbs =  ["Filters: " + item.title]
         screenName = "Grid Filters"
     else if viewGroup = "secondary" then

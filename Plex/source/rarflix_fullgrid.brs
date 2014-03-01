@@ -153,18 +153,7 @@ Function createFULLgridPaginatedLoader(container, initialLoadSize, pageSize, ite
         ReorderItemsByKeyPriority(headerRow, RegRead("section_row_order", "preferences", ""))
 
         ' Put Filters before any others
-        imageDir = GetGlobalAA().Lookup("rf_theme_dir")
-        filterItem = {}
-        filterItem.key = "_section_filters_"
-        filterItem.server = loader.server
-        filterItem.sourceurl = loader.server.serverurl + sectionKey + "/filters"
-        filterItem.name = "Filters"
-        filterItem.umtitle = "Enabled Filters & Sorting"
-        filterItem.title = filterItem.umtitle
-        filterItem.viewGroup = "section_filters"
-        filterItem.SDPosterURL = imageDir + "gear.png"
-        filterItem.HDPosterURL = imageDir + "gear.png"
-        rfCDNthumb(filterItem,filterItem.name,invalid)
+        filterItem = createSectionFilterItem(loader.server,loader.sourceurl,item.type)
         headerRow.Unshift(filterItem)
 
     end if

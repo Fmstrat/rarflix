@@ -235,29 +235,102 @@ function getNextEpisode(item,details=false)
     return metadata
 end function
 
-function getValidFilters(server,sourceUrl)
-    if server = invalid or sourceUrl = invalid then return invalid
+function defaultTypes(key=invalid,typeKey=invalid)
+    '    key : movie|show|artist
+    ' tmpKey : numericID of key
+    ' 
+    ' if key <> movie|show|artist this will return invalid
+    ' exception: if key = specific key (episode|album|etc) and typeKey is set
+    '  this will utilize the allTypes array for results
+    types = {}
 
-    ' 1. get the base library section key
+    ' shot object
+    types.show = {}
+    types.show.title = "show"
+    types.show.key = 2
+    types.show.values = [
+        {title: "show" , key: 2},
+        {title: "episode" , key: 4 }
+    ]
+
+    ' artist object
+    types.artist = {}
+    types.artist.title = "artist"
+    types.artist.key = 8
+    types.artist.values = [
+        {title: "artist" , key: 8},
+        {title: "album" , key: 9 }
+        {title: "track" , key: 10 }
+    ]
+
+    ' all valid types ( more to come if needed )
+    allTypes = [
+        {title: "show" , key: 2, main: "show"},
+        {title: "episode" , key: 4, main: "show"},
+        {title: "artist" , key: 8, main: "artist"},
+        {title: "album" , key: 9, main: "artist"},
+    ]
+
+    ' track is not available by filters yet
+    ' TODO(ljunkie) this causes a bad crash when allowed. Should be able to handle this better
+    '{title: "track" , key: 10, main: "artist"},
+
+    if key <> invalid then 
+        ' reset the default if typeKey specified
+        if typeKey <> invalid and types[key] <> invalid then 
+            for each item in types[key].values
+                if item.key = typeKey then 
+                    types[key].key = item.key
+                    types[key].title = item.title
+                    return types[key]
+                    exit for
+                end if
+            end for 
+        end if
+
+        ' reset the default if typeKey specified and key more specific 
+        if typeKey <> invalid then 
+            for each item in alltypes
+                if item.key = typeKey then 
+                    types[item.main].key = item.key
+                    types[item.main].title = item.title
+                    return types[item.main]
+                    exit for
+                end if
+            end for 
+        end if
+
+        ' return defaults for key - will return invalid for nonkey
+        return types[key]
+    end if
+
+    ' no arguments will retun types object - not used yet
+    return types
+end function
+
+' used to get/set the cachekeys used for globalAA records
+'  if typeKey is sepcifided, it will set the server/section type
+function getFilterSortCacheKeys(server,sourceUrl,typeKey=invalid)
+    if server = invalid or sourceUrl = invalid then return invalid
+    ' get base section from url
     sectionKey = getBaseSectionKey(sourceUrl)
     if sectionKey = invalid then return invalid
 
-    ' 2. obtain the valid filter keys from the cache (or create the cache)
-    filterCacheKey = "filters_"+tostr(server.machineid)+tostr(sectionKey)
-    validFilters = GetGlobal(filterCacheKey)
+    obj = {}
 
-    if validFilters = invalid then 
-        Debug("caching Valid Filters for this section")
-        ' set cache to empty ( not invalid -- so we don't keep retrying )
-        GetGlobalAA().AddReplace(filterCacheKey, {})        
-        obj = createPlexContainerForUrl(server, "", sectionKey + "/filters")
-        if obj <> invalid then 
-            ' using an assoc array ( we might want more key/values later )
-            GetGlobalAA().AddReplace(filterCacheKey, obj.getmetadata())        
-            validFilters = GetGlobal(filterCacheKey)
-        end if
+    obj.sectionKey = sectionKey    
+    obj.typeCacheKey = "section_typekey_"+tostr(server.machineid)+tostr(sectionKey)
+    if typeKey <> invalid then 
+        GetGlobalAA().AddReplace(obj.typeCacheKey, typeKey)
     end if
 
-    if validFilters = invalid then return invalid
-    return validFilters
+    obj.typeKey = GetGlobal(obj.typeCacheKey)
+    obj.filterValuesCacheKey = "section_filters_"+tostr(server.machineid)+tostr(sectionKey)+"_"+tostr(obj.typeKey)
+
+    ' available filter and sorts for section (with typeKey if set)
+    obj.filterCacheKey = "filters_"+tostr(server.machineid)+tostr(sectionKey)+"_"+tostr(obj.typeKey)
+    obj.sortCacheKey = "sorts_"+tostr(server.machineid)+tostr(sectionKey)+"_"+tostr(obj.typeKey)
+
+    return obj
 end function
+

@@ -106,27 +106,27 @@ function getSortingOption(server = invalid,sourceUrl = invalid)
 
     if server = invalid or sourceUrl = invalid then return invalid
 
-    ' 1. get the base library section key
-    sectionKey = getBaseSectionKey(sourceUrl)
-    if sectionKey = invalid then return invalid
+    cacheKeys = getFilterSortCacheKeys(server,sourceurl)
+    if cachekeys = invalid then return invalid
+    sectionKey = cacheKeys.sectionKey
 
-    ' 2. obtain the valid filter keys from the cache (or create the cache)
-    sortCacheKey = "sorts_"+tostr(server.machineid)+tostr(sectionKey)
-    validSorts = GetGlobal(sortCacheKey)
+    validSorts = GetGlobal(cachekeys.sortCacheKey)
 
     if validSorts = invalid then 
         Debug("caching Valid Sorts for this section")
         ' set cache to empty ( not invalid -- so we don't keep retrying )
-        GetGlobalAA().AddReplace(sortCacheKey, {})        
-        obj = createPlexContainerForUrl(server, "", sectionKey + "/sorts")
+        GetGlobalAA().AddReplace(cachekeys.sortCacheKey, {})        
+        typeKey = "?type="+tostr(cacheKeys.typeKey)
+        if cacheKeys.typeKey = invalid then typeKey = ""
+        obj = createPlexContainerForUrl(server, "", sectionKey + "/sorts" + typeKey)
         if obj <> invalid then 
             ' using an assoc array ( we might want more key/values later )
-            GetGlobalAA().AddReplace(sortCacheKey, obj.getmetadata())        
-            validSorts = GetGlobal(sortCacheKey)
+            GetGlobalAA().AddReplace(cachekeys.sortCacheKey, obj.getmetadata())        
+            validSorts = GetGlobal(cachekeys.sortCacheKey)
         end if
     end if
 
-    if validSorts = invalid then return invalid
+    if validSorts = invalid or validSorts.count() = 0 then return invalid
 
     ' 3. try to determine the current sort if already in the url
     sortKey = invalid
