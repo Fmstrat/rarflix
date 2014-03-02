@@ -300,12 +300,11 @@ function defaultTypes(key=invalid,typeKey=invalid)
             end for 
         end if
 
-        ' return defaults for key - will return invalid for nonkey
+        ' return defaults for key - invalid result if not set is expected
         return types[key]
     end if
 
-    ' no arguments will retun types object - not used yet
-    return types
+    return invalid
 end function
 
 ' used to get/set the cachekeys used for globalAA records
