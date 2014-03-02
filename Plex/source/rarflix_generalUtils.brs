@@ -260,8 +260,8 @@ function defaultTypes(key=invalid,typeKey=invalid)
     types.artist.values = [
         {title: "artist" , key: 8},
         {title: "album" , key: 9 }
-        {title: "track" , key: 10 }
     ]
+    '{title: "track" , key: 10 }
 
     ' all valid types ( more to come if needed )
     allTypes = [
