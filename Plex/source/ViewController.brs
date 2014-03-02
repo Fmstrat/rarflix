@@ -442,8 +442,13 @@ Function vcCreateScreenForItem(context, contextIndex, breadcrumbs, show=true) As
             ' standard Grid screen - multiple rows
             ' this will only happen if somone has changed FullGrid prefs during the section
             ' we could just reload the HomeScreenRows when toggled - but this doesn't seem bad
-            if item.OrigSourceUrl <> invalid then item.sourceurl = item.OrigSourceUrl
-            if item.OrigKey <> invalid then item.sourceurl = item.OrigKey
+            if item.OrigSourceUrl <> invalid and item.origkey <> invalid then 
+                item.key = item.origkey
+                item.sourceurl = item.OrigSourceUrl
+                item.origkey = invalid
+                item.OrigSourceUrl = invalid
+            end if
+
             screen = createGridScreenForItem(item, m, grid_style, displaymode_grid)
             if focusrow <> invalid and screen.loader.focusrow <> invalid then screen.loader.focusrow = focusrow
         else 
