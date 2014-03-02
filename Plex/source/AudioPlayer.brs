@@ -576,7 +576,7 @@ Function audioPlayerMenuHandleButton(command, data) As Boolean
         ' TODO(ljunkie) dedupe this block elsewhere
         parentScreen = m.RealParentScreen
         item = m.RealParentScreen.originalItem
-        createFilteSortScreenFromItem(item, parentScreen)
+        createFilterSortScreenFromItem(item, parentScreen)
         closeDialog = true
     end if
 
