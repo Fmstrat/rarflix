@@ -277,7 +277,7 @@ Sub loaderRefreshData()
 
             ' include what is filtered in popout
             if item <> invalid and tostr(item.viewgroup) = "section_filters" then 
-                item.description = getFilterDescription(item.server,item.sourceurl)
+                item.description = getFilterSortDescription(item.server,item.sourceurl)
                 m.listener.Screen.SetContentListSubset(m.listener.selectedRow, m.listener.contentArray[m.listener.selectedRow], m.listener.focusedIndex, 1)
             end if
 

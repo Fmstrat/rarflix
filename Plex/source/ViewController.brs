@@ -407,7 +407,6 @@ Function vcCreateScreenForItem(context, contextIndex, breadcrumbs, show=true) As
         screenName = "Audio Springboard"
     else if contentType = "section" then
         ' ljunkie - this has been modified quite a bit. Sections have always been a "grid". Users now have an option to use a Full Grid by default
-
         screenName = "Section: " + tostr(item.type)
 
         ' check if section has the full grid enabled
@@ -438,12 +437,16 @@ Function vcCreateScreenForItem(context, contextIndex, breadcrumbs, show=true) As
         ' TODO(ljunkie) add other modes in here to make this logic more sound
         if grid_style = "flat-16x9" then focusrow = 2
 
+        item.useFullGrid = useFullGrid
         if NOT useFullGrid then 
             ' standard Grid screen - multiple rows
+            ' this will only happen if somone has changed FullGrid prefs during the section
+            ' we could just reload the HomeScreenRows when toggled - but this doesn't seem bad
+            if item.OrigSourceUrl <> invalid then item.sourceurl = item.OrigSourceUrl
+            if item.OrigKey <> invalid then item.sourceurl = item.OrigKey
             screen = createGridScreenForItem(item, m, grid_style, displaymode_grid)
             if focusrow <> invalid and screen.loader.focusrow <> invalid then screen.loader.focusrow = focusrow
         else 
-            item.useFullGrid = true
             ' full grid screen - hoping mGo will become available at some point
             Debug("---- using FULL GRID by default for this section type")
            
@@ -456,6 +459,10 @@ Function vcCreateScreenForItem(context, contextIndex, breadcrumbs, show=true) As
                 dlg.Text = "You are entering All " + item.title + ". In this section, you can click up to see a hidden row to filter the items or choose a quick filter. The info key (*) on the remote may also be used to change the sorting or items."
                 dlg.Show(true)
             end if
+
+            ' retain originals
+            item.OrigSourceUrl = item.sourceurl
+            item.Origkey = item.key
 
             ' reset the section to use the /all endpoint 
             ' - make sure we have the base section key ( strip any junk/subsections )

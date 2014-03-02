@@ -6,15 +6,7 @@
 
 Function gridsortDialogHandleButton(command, data) As Boolean
     obj = m.ParentScreen
-
     closeDialog = false
-
-
-    print "-------------item-----------------"
-    print m.item.key
-
-    print "-------------command-----------------"
-    print command
 
     if command = "close" then
         closeDialog = true
@@ -197,8 +189,11 @@ function getSortingOption(server = invalid,sourceUrl = invalid)
     defaultSort = RegRead("section_sort", "preferences","titleSort:asc")
 
     ' lookup the current order: sort order is saved per section for the session of the channel
-    if sortKey = invalid then sortKey = GetGlobalAA().lookup("sort"+sectionKey)
-    if sortkey = invalid then sortKey = defaultSort
+    if sortKey = invalid then sortKey = GetGlobalAA().lookup(cachekeys.sortValCacheKey)
+    if sortkey = invalid or sortKey = "" then sortKey = defaultSort
+
+    Debug("current sort key for: " + tostr(cachekeys.sortValCacheKey) + " val:" + tostr(GetGlobalAA().lookup(cachekeys.sortValCacheKey)))
+    Debug("current sort key used: " + tostr(sortKey))
 
     ' current selection index of options
     for index = 0 to options.count()-1
@@ -236,12 +231,14 @@ sub gridSortSection(grid,sortKey = invalid)
     end if
 
     ' sort order is saved per section for the session of the channel
-    sectionKey = getBaseSectionKey(grid.loader.sourceurl)
-    GetGlobalAA().AddReplace("sort"+sectionKey,sortKey)
+    cacheKeys = getFilterSortCacheKeys(grid.loader.server,grid.loader.sourceurl)
+    if cachekeys = invalid then return
+    GetGlobalAA().AddReplace(cachekeys.sortValCacheKey,sortKey)
 
     sourceurl = grid.loader.sourceurl
     if sourceurl <> invalid then 
         re = CreateObject("roRegex", "(sort=[^\&\?]+)", "i")
+
         if re.IsMatch(sourceurl) then 
             'if instr(1, sortKey, "titleSort:asc") > 0 then 
             '    re = CreateObject("roRegex", "([\?\&]sort=[^\&\?]+)", "i")
@@ -256,6 +253,7 @@ sub gridSortSection(grid,sortKey = invalid)
                 sourceurl = sourceurl + f + "sort="+sortKey
             'end if
         end if
+
         grid.loader.sourceurl = sourceurl
         grid.loader.sortingForceReload = true
         if grid.loader.listener <> invalid and grid.loader.listener.loader <> invalid then 
@@ -303,7 +301,7 @@ sub dialogSetSortingButton(dialog,obj)
             dummyObj.getSortKey = getSortKey
 
             if reFILT.IsMatch(obj.loader.sourceurl) then
-                if getFilterParams(obj.loader.server,obj.loader.sourceurl).hasFilters = true then 
+                if getFilterSortParams(obj.loader.server,obj.loader.sourceurl).hasFilters = true then 
                     dialog.SetButton("gotoFilters", "Filters: Enabled, Sort: " + dummyObj.getSortString())
                 else 
                     dialog.SetButton("gotoFilters", "Filters: None, Sort: " + dummyObj.getSortString())

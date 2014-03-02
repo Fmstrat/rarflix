@@ -87,6 +87,9 @@ Function createGridScreenForItem(item, viewController, style, SetDisplayMode = "
 
     obj.Item = item
 
+    ' ljunkie - required for filters/sorts - yes we have the item above, but this is for backwards compatibility with the fullgrid
+    obj.OriginalItem = item
+
     container = createPlexContainerForUrl(item.server, item.sourceUrl, item.key)
     container.SeparateSearchItems = true
     obj.Loader = createPaginatedLoader(container, 8, 75, item)
@@ -302,7 +305,7 @@ Function gridHandleMessage(msg) As Boolean
 
             ' include what is filtered in popout
             if item <> invalid and tostr(item.viewgroup) = "section_filters" then 
-                item.description = getFilterDescription(item.server,item.sourceurl)
+                item.description = getFilterSortDescription(item.server,item.sourceurl)
                 m.Screen.SetContentListSubset(m.selectedRow, m.contentArray[m.selectedRow], m.focusedIndex, 1)
             end if
 
@@ -406,14 +409,12 @@ Function gridHandleMessage(msg) As Boolean
 
                 isMovieTV = (itype = "movie"  or itype = "show" or itype = "episode" or itype = "season" or itype = "series")
                 sn = m.screenname
-                if tostr(itype) <> "invalid" and isMovieTV then 
-                    ' need to full screen here
+                if tostr(itype) <> "invalid" and isMovieTV and tostr(item.viewgroup) <> "section" then 
                     obj = GetViewController().screens.peek()
                     obj.metadata = item
                     obj.Item = item
                     rfVideoMoreButtonFromGrid(obj)
                 else if item <> invalid and tostr(item.contenttype) = "photo" then 
-                    ' need to full screen here
                     obj = GetViewController().screens.peek()
                     obj.Item = item
                     photoShowContextMenu(obj,true,true)

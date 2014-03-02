@@ -1,22 +1,29 @@
 '*
 '* TESTING...
 '*
+
+' Initial Filter screen containing [type], filters, sorts, clear filters, close
 Function createFilterSortListScreen(item, gridScreen, typeKey=invalid) As Object
-
-    obj = createBasePrefsScreen(GetViewController())
+    ' Facade screen create to keep home screen from showing when we have to 
+    ' reload the grid on close due to filters/types changing
     facade = CreateObject("roGridScreen")
-    obj.facade = facade
-    obj.facade.Show()
-    obj.filterItem = item
+    facade.show()
 
-    obj.Screen.SetHeader("Filter Options")
-    obj.parentscreen = gridScreen
+    ' create the standard list screen
+    obj = createBasePrefsScreen(GetViewController())
 
-    obj.HandleMessage = prefsFilterHandleMessage
+    obj.Screen.SetHeader("Filter & Sorting")
+    obj.HandleMessage = prefsFilterSortHandleMessage
     obj.Activate = prefsFilterSortActivate
     obj.refreshOnActivate = true
 
-    ' other screen options in the filter/sort screen
+    obj.filterItem = item
+    obj.facade = facade
+    obj.parentscreen = gridScreen
+    obj.sourceUrl = item.sourceUrl
+    obj.server = item.server
+
+    ' other screen created from within this screen
     obj.createFilterListScreen = createFilterListScreen
     obj.createTypeListScreen = createTypeListScreen
 
@@ -31,34 +38,35 @@ Function createFilterSortListScreen(item, gridScreen, typeKey=invalid) As Object
     obj.cacheKeys = getFilterSortCacheKeys(item.server,item.sourceurl,typeKey)
     if obj.cachekeys = invalid then return invalid
     
-    filterObj = getFilterParams(item.server,item.sourceurl)
-    obj.initialFilterParamsString = filterObj.filterParamsString
-
-    obj.sourceUrl = item.sourceUrl
-    obj.server = item.server
-    obj.item = item
+    filterSortObj = getFilterSortParams(item.server,item.sourceurl)
+    obj.initialFilterParamsString = filterSortObj.filterParamsString
 
     ' obtain any filter in place - state saved per session per section
     obj.filterValues = GetGlobal(obj.cachekeys.filterValuesCacheKey)
-    print obj.cachekeys.filterValuesCacheKey
     if obj.filterValues = invalid then obj.filterValues = {}
 
-    ' filters - valid for use (cache) for base url
-    obj.validFilters = getValidFilters(obj.server,obj.sourceurl)
-    if obj.validFilters = invalid or obj.validFilters.count() = 0 then
-        Debug("no valid filters found for this section? " + tostr(sectionKey) + "/filters")
-        return invalid
-    end if   
+    ' Add buttons to the screen. If you need to add any other buttons, make sure to update
+    ' the fuck prefsFilterSortActivate() with any new button logic - ordering of buttons
+    ' will break logic
 
     obj.defaultTypes = defaultTypes(item.type,obj.cacheKeys.typeKey)
-    print obj.cacheKeys.typeKey
-    print obj.defaultTypes
     if obj.defaultTypes <> invalid then 
         obj.AddItem({title: "Type",}, "create_type_screen", getDefaultType(obj.defaultTypes))
     end if
-    obj.AddItem({title: "Filters"}, "create_filter_screen", obj.getFilterKeyString())
+
+    ' TODO(lunkie) verify one can still sort if filters are not available -- all sections *should* have filters
+    obj.validFilters = getValidFilters(obj.server,obj.sourceurl)
+    if obj.validFilters = invalid or obj.validFilters.count() = 0 then
+        Debug("no valid filters found for this section? " + tostr(obj.cacheKeys.sectionKey) + "/filters")
+    else 
+        obj.AddItem({title: "Filters"}, "create_filter_screen", obj.getFilterKeyString())
+    end if
+
     obj.AddItem({title: "Sorting"}, "create_sort_screen", obj.getSortString())
-    obj.AddItem({title: "Clear Filters"}, "clear_filters")
+    if filterSortObj.hasFilters = true then 
+        obj.AddItem({title: "Clear Filters"}, "clear_filters")
+    end if
+
     obj.AddItem({title: "Close"}, "close")
 
     return obj
@@ -88,10 +96,10 @@ function getSortkey()
 end function
 
 function getFilterKeyString()
-    filterObj = getFilterParams(m.server,m.sourceurl)
+    filterSortObj = getFilterSortParams(m.server,m.sourceurl)
     keyString = ""
-    if filterObj <> invalid and filterObj.filterKeysString <> invalid then 
-        keyString = filterObj.filterKeysString
+    if filterSortObj <> invalid and filterSortObj.filterKeysString <> invalid then 
+        keyString = filterSortObj.filterKeysString
     end if
     if keyString = "" then keyString = "None"
     return keyString
@@ -157,9 +165,8 @@ Function createTypeListScreen() As Object
     obj.Screen.SetHeader("Type Options")
     obj.parentscreen = m
 
-    obj.HandleMessage = prefsFilterHandleMessage
-    obj.Activate = prefsFilterSortActivate
-    obj.refreshOnActivate = true
+    obj.HandleMessage = prefsTypeHandleMessage
+    obj.refreshOnActivate = false
 
     for index = 0 to m.defaultTypes.values.count()-1
         item = m.defaultTypes.values[index]
@@ -184,8 +191,11 @@ Function createSubFilterListScreen(key) As Object
     obj.Screen.SetHeader("Sub Filter Options")
     obj.FilterSelection = m.filterValues[key]
     obj.ParentScreen = m
+    obj.isFilterEnabled = isFilterEnabled
+    obj.filterAdd = filterListAdd
+    obj.filterDel = filterListDelete
 
-    obj.HandleMessage = prefsFilterHandleMessage
+    obj.HandleMessage = prefsSubFilterHandleMessage
 
     item = obj.FilterSelection.filter
     container = createPlexContainerForUrl(item.server, "", item.key)
@@ -193,17 +203,7 @@ Function createSubFilterListScreen(key) As Object
 
     ' parent array
     for each item in metadata
-        found = false
-        for each key in obj.filterSelection.values
-            if key = item.key then 
-                found = true
-            end if
-        end for 
-
-        defaultValue = ""
-        if found then defaultValue = "X"
-
-        obj.AddItem({title: item.title, key: item.key, metadata: item}, "sub_filter_toggle", defaultValue)
+        obj.AddItem({title: item.title, key: item.key, metadata: item}, "sub_filter_toggle", obj.isFilterEnabled(item.key))
     end for 
 
     obj.AddItem({title: "Close"}, "close")
@@ -211,6 +211,38 @@ Function createSubFilterListScreen(key) As Object
     facade.close()
     return obj
 End Function
+
+function isFilterEnabled(filterKey,typeBoolean=false)
+    if typeBoolean then 
+        enabled = true
+        disabled = false
+    else 
+        enabled = "X"
+        disabled = ""
+    end if
+    if m.filterSelection <> invalid and m.filterSelection.values <> invalid then 
+        for each enabledKey in m.filterSelection.values
+            if filterKey = enabledKey
+                return enabled
+                exit for
+            end if
+        end for
+    end if
+
+    return disabled
+end function
+
+sub filterListAdd(key, title) 
+    if m.filterSelection <> invalid and m.filterSelection.values <> invalid then
+        m.filterSelection.values[key] = title
+    end if
+end sub
+
+sub filterListDelete(key, title) 
+    if m.filterSelection <> invalid and m.filterSelection.values <> invalid then
+        m.filterSelection.values.Delete(key)
+    end if
+end sub
 
 function filterList(obj) 
     values = ""
@@ -241,74 +273,49 @@ function clearfilterList()
     end for
 end function
 
-sub filterListAdd(values, key, title) 
-    values[key] = title
-end sub
-
-sub filterListDelete(values, key, title) 
-    values.Delete(key)
-end sub
-
-Function prefsFilterHandleMessage(msg) As Boolean
+Function prefsFilterSortHandleMessage(msg) As Boolean
     handled = false
 
     if type(msg) = "roListScreenEvent" then
         handled = true
 
         if msg.isScreenClosed() then
+             gridScreen = m.parentscreen
 
              if m.callBackItem <> invalid then 
+                ' recreate the list screen ( probably due to type change )
                 Debug("filter type changed - recreate the list screen")
-                'set the call back before we pop the screen
                 callback = m.CallBackItem
                 GetViewController().afterCloseCallback = callback
              else if m.filterOnClose = true then 
+                ' recreate or refresh the full grid screen with the new filters/sorts
                 GetGlobalAA().AddReplace(m.cachekeys.filterValuesCacheKey,m.filterValues)
 
-                filterObj = getFilterParams(m.server,m.sourceurl)
-                dummyObj = {}
-                dummyObj.server = m.parentscreen.originalitem.server
-                dummyObj.sourceurl = m.parentscreen.originalitem.sourceurl
-                dummyObj.getSortString = getSortString                        
-                dummyObj.getSortKey = getSortKey
-                defaultSort = RegRead("section_sort", "preferences","titleSort:asc")
-                sortText = invalid
-                if defaultSort <> dummyObj.getSortKey() then sortText = dummyObj.getSortString()
+                filterSortObj = getFilterSortParams(m.server,m.sourceurl)
+                gridItem = gridScreen.originalitem
+                breadcrumbs = getFilterBreadcrumbs(filterSortObj,gridItem)
 
-                if (m.initialFilterParamsString <> filterObj.filterParamsString) or m.forcefilterOnClose = true then 
+                ' recreate the full grid if filters changed or we are forceing a filter change
+                '  forcefilterOnClose: due to recreating list screen with a typeKey set ( changing types )
+                if (m.initialFilterParamsString <> filterSortObj.filterParamsString) or m.forcefilterOnClose = true then 
                     Debug("filter options or type changed -- refreshing the grid (new)")
-                    ' recreate the grid screen with a call back
                     m.ViewController.PopScreen(m)
 
+                    ' create a call back item for the viewController to receate it (the full grid screen)
                     callback = CreateObject("roAssociativeArray")
-                    callback.Item = m.parentscreen.originalitem
-
-                    ' refresh the breadcrumbs
-                    if filterObj.hasFilters = true then 
-                         callback.breadcrumbs = [callback.Item.title,"Filters Enabled"]
-                    else if sortText <> invalid then 
-                         callback.breadcrumbs = [callback.Item.title,sortText]
-                    else 
-                         callback.breadcrumbs = [firstof(callback.Item.server.name,""),callback.Item.title]
-                    end if
-
                     callback.facade = m.facade
+                    callback.item = gridItem
+                    callback.breadcrumbs = breadcrumbs
                     callback.OnAfterClose = createScreenForItemCallback
-                    GetViewController().afterCloseCallback = callback
-                    m.parentscreen.screen.Close()
-                    return true
 
+                    ' assign the callback item to the viewcontroller and close the grid
+                    GetViewController().afterCloseCallback = callback
+                    gridScreen.screen.Close()
+                    return true
                 else 
                     Debug("filter options and type did not change (sorting may have and will reload if needed)")
-                    ' refresh the breadcrumbs
-                    if filterObj.hasFilters = true then 
-                        m.parentscreen.Screen.SetBreadcrumbText(m.parentscreen.originalitem.title,"Filters Enabled")
-                    else if sortText <> invalid then 
-                        m.parentscreen.Screen.SetBreadcrumbText(m.parentscreen.originalitem.title, sortText)
-                    else 
-                        m.parentscreen.Screen.SetBreadcrumbText(firstof(m.parentscreen.originalitem.server.name,""), m.parentscreen.originalitem.title)
-                    end if                            
-
+                    GetViewController().AddBreadcrumbs(gridScreen, breadcrumbs)
+                    GetViewController().UpdateScreenProperties(gridScreen)
                 end if
             end if
 
@@ -318,17 +325,143 @@ Function prefsFilterHandleMessage(msg) As Boolean
         else if msg.isListItemSelected() then
             m.FocusedIndex = msg.GetIndex()
             command = m.GetSelectedCommand(m.FocusedIndex)
-            print command
+
             if command = "close" then
                 m.Screen.Close()
             else if command = "clear_filters" then
+                ' TODO(ljunkie) sould we change this to a "reset" and clear sorting too?
                 m.ClearFilters()
+                ' reactivate this screen (refresh all items)
                 m.Activate(m)
+            else if command = "create_filter_screen" then
+                screen = m.createFilterListScreen()
+                screen.ScreenName = "Filter Options"
+                GetViewController().InitializeOtherScreen(screen, invalid)
+                screen.screen.show()
+            else if command = "create_type_screen" then
+                screen = m.createTypeListScreen()
+                screen.ScreenName = "View Type"
+                GetViewController().InitializeOtherScreen(screen, invalid)
+                screen.screen.show()
+            else if command = "create_sort_screen" then
+                ' TODO(ljunkie) - do we need to make this a list screen instead of a dialog?
+                ' sorting was creating before filtering. It uses a dialog. It could be changed to a list screen to match 
+                ' the existing format, but it will be a bit of work.
+                dialog = createGridSortingDialog(m,m.parentscreen)
+                if dialog <> invalid then dialog.Show(true)
+            end if
+        end if
+
+    end if
+
+    return handled
+End Function
+
+Function prefsFilterHandleMessage(msg) As Boolean
+    handled = false
+
+    if type(msg) = "roListScreenEvent" then
+        handled = true
+
+        if msg.isScreenClosed() then
+            m.ViewController.PopScreen(m)
+        else if msg.isListItemSelected() then
+            m.FocusedIndex = msg.GetIndex()
+            command = m.GetSelectedCommand(m.FocusedIndex)
+
+            if command = "close" then
+                m.Screen.Close()
+            else if command = "filter_toggle" then
+                item = m.contentarray[m.FocusedIndex]
+                if item = invalid then return handled
+
+                ' boolean filter types we just toggle through 
+                if item.type = "boolean" then 
+                    if m.filterValues[item.key].value = invalid then 
+                        m.filterValues[item.key].value = 1
+                        m.filterValues[item.key].title = "true"
+                    else if m.filterValues[item.key].value = 1 then 
+                        m.filterValues[item.key].value = 0
+                        m.filterValues[item.key].title = "false"
+                    else 
+                        m.filterValues[item.key].value = invalid 
+                        m.filterValues[item.key].title = ""
+                    end if
+                    
+                    m.AppendValue(m.FocusedIndex, m.filterValues[item.key].title)
+                else 
+                    ' other filter types (string/integer) need another screen to toggle sub filters
+                    screen = m.createSubFilterListScreen(item.key)
+                    screen.ScreenName = "Sub Filters"
+                    GetViewController().InitializeOtherScreen(screen, invalid)
+                    screen.screen.show()
+                end if
+            end if
+        end if
+
+    end if
+
+    return handled
+End Function
+
+Function prefsSubFilterHandleMessage(msg) As Boolean
+    handled = false
+
+    if type(msg) = "roListScreenEvent" then
+        handled = true
+
+        if msg.isScreenClosed() then
+            m.ViewController.PopScreen(m)
+        else if msg.isListItemSelected() then
+            m.FocusedIndex = msg.GetIndex()
+            command = m.GetSelectedCommand(m.FocusedIndex)
+
+            if command = "close" then
+                m.Screen.Close()
+            else if command = "sub_filter_toggle" then
+                ' filter is toggles
+                ' * update the list item value to show it's marked
+                ' * add/delete the specific filterValues (m.filterselection.values) depending if it's on/off
+                item = m.contentarray[m.FocusedIndex]
+
+                if m.isFilterEnabled(item.key,1) = true then 
+                    m.filterDel(item.key, item.title) 
+                else 
+                    m.filterAdd(item.key, item.title) 
+                end if 
+
+                m.AppendValue(m.FocusedIndex, m.isFilterEnabled(item.key))
+
+            end if
+
+        end if
+    end if
+
+    return handled
+End Function
+
+
+Function prefsTypeHandleMessage(msg) As Boolean
+    handled = false
+
+    if type(msg) = "roListScreenEvent" then
+        handled = true
+
+        if msg.isScreenClosed() then
+            m.ViewController.PopScreen(m)
+        else if msg.isListItemSelected() then
+            m.FocusedIndex = msg.GetIndex()
+            command = m.GetSelectedCommand(m.FocusedIndex)
+
+            if command = "close" then
+                m.Screen.Close()
             else if command = "filter_type_toggle" then
+                item = m.contentarray[m.FocusedIndex]
+
+                ' closing the filter screen (m.parentscreen) will close the originalfacade. This needs
+                ' to a new facade to hide the grid below while recreateing the list screen.
                 facade = CreateObject("roGridScreen")
                 facade.show()
-                
-                item = m.contentarray[m.FocusedIndex]
 
                 ' clear any filters
                 m.parentscreen.ClearFilters()
@@ -338,77 +471,17 @@ Function prefsFilterHandleMessage(msg) As Boolean
                 callback = CreateObject("roAssociativeArray")
                 callback.Item = m.parentscreen.filterItem
                 callback.Item.typeKey = item.key
-                callback.breadcrumbs = ["","filter options"]
+                callback.breadcrumbs = ["","Filters & Sorting"]
                 callback.facade = facade
                 callback.OnAfterClose = createScreenForItemCallback
 
-                ' set the callback and close the list screen
+                ' set a callbackItem on the parent screen. It will try to re-create the items screen
+                ' (new filter/sort list screen) after closing the current list filter/sort screen
                 m.parentscreen.callbackitem = callback
                 m.parentscreen.screen.Close()
-            else if command = "create_filter_screen" then
-                screen = m.createFilterListScreen()
-                screen.ScreenName = "Filter Options"
-                GetViewController().InitializeOtherScreen(screen, invalid)
-                screen.screen.show()
-            else if command = "create_type_screen" then
-                screen = m.createTypeListScreen()
-                screen.ScreenName = "Content Type Options"
-                GetViewController().InitializeOtherScreen(screen, invalid)
-                screen.screen.show()
-            else if command = "create_sort_screen" then
-                ' reuse the same sorting dialog we already have
-                dialog = createGridSortingDialog(m,m.parentscreen)
-                if dialog <> invalid then dialog.Show(true)
-            else if command = "filter_toggle" then
-                item = m.contentarray[m.FocusedIndex]
-                if item <> invalid then
-                    if item.type = "boolean" then 
-
-                        if m.filterValues[item.key].value = invalid then 
-                            m.filterValues[item.key].value = 1
-                            m.filterValues[item.key].title = "true"
-                        else if m.filterValues[item.key].value = 1 then 
-                            m.filterValues[item.key].value = 0
-                            m.filterValues[item.key].title = "false"
-                        else 
-                            m.filterValues[item.key].value = invalid 
-                            m.filterValues[item.key].title = ""
-                        end if
-                        
-                        m.AppendValue(m.FocusedIndex, m.filterValues[item.key].title)
-                    else 
-                        screen = m.createSubFilterListScreen(item.key)
-                        screen.ScreenName = "Sub Filters"
-                        GetViewController().InitializeOtherScreen(screen, invalid)
-                        screen.screen.show()
-                    end if
-    
-                end if
-
-            else if command = "sub_filter_toggle" then
-                ' filter is toggles
-                ' * update the list item value to show it's marked
-                ' * add/delete the specific filterValues (m.filterselection.values) depending if it's on/off
-                item = m.contentarray[m.FocusedIndex]
-
-                found = false
-                for each key in m.filterselection.values
-                    if key = item.key then 
-                        found = true
-                        exit for
-                    end if
-                end for 
-
-                if found then 
-                    filterListDelete(m.filterselection.values, item.key, item.title) 
-                    m.AppendValue(m.FocusedIndex, "")
-                else 
-                    filterListAdd(m.filterselection.values, item.key, item.title) 
-                    m.AppendValue(m.FocusedIndex, "X")
-                end if
             end if
-
         end if
+
     end if
 
     return handled
@@ -432,9 +505,11 @@ Sub prefsFilterActivate(priorScreen)
 End Sub
 
 Sub prefsFilterSortActivate(priorScreen)
-
+    ' refresh all the buttons
+    hasClearButton = false
     for index = 0 to m.contentarray.count()-1
         command = m.GetSelectedCommand(index)
+        filterSortObj = getFilterSortParams(m.server,m.sourceurl)
 
         if command = "create_filter_screen" then 
             m.AppendValue(index, m.getFilterKeyString())
@@ -442,13 +517,29 @@ Sub prefsFilterSortActivate(priorScreen)
             m.AppendValue(index, m.getSortString())
         else if command = "create_type_screen" then 
             m.AppendValue(index, getDefaultType(m.defaultTypes))
-        end if
+        else if command = "clear_filters" 
+            hasClearButton = true
+            'remove button if filters do not exist
+            if filterSortObj.hasFilters = false then 
+                hasClearButton = false
+                m.contentArray.Delete(index)
+                m.screen.setcontent(m.contentArray)
+            end if
+        else if command = "close" then 
+            if hasClearButton = false and filterSortObj.hasFilters = true then
+                ' delete the close button and add clear/close back
+                m.contentArray.Delete(index)
+                m.screen.setcontent(m.contentArray)
+                m.AddItem({title: "Clear Filters"}, "clear_filters")
+                m.AddItem({title: "Close"}, "close")
+            end if
 
+        end if
     end for
 
 End Sub
 
-function getFilterParams(server,sourceUrl)
+function getFilterSortParams(server,sourceUrl)
     ' always pass back a valid object
     obj = {}
     obj.filterParamsString = ""
@@ -459,6 +550,10 @@ function getFilterParams(server,sourceUrl)
     obj.cacheKeys = getFilterSortCachekeys(server,sourceurl)
 
     if obj.cachekeys = invalid then return obj
+
+    ' attach the sorting object
+    obj.sorts = getSortingOption(server,sourceUrl)
+    if obj.sorts <> invalid and obj.sorts.item <> invalid then obj.sortItem = obj.sorts.item
 
     ' obtain any filter in place - state saved per session per section
     obj.filterValues = GetGlobal(obj.cachekeys.filterValuesCacheKey)
@@ -520,9 +615,9 @@ function getFilterParams(server,sourceUrl)
     return obj
 end function
 
-function addFiltersToUrl(sourceurl,filterObj)
-    filterValues = filterObj.filterValues
-    filterParamsString = filterObj.filterParamsString
+function addFiltersToUrl(sourceurl,filterSortObj)
+    filterValues = filterSortObj.filterValues
+    filterParamsString = filterSortObj.filterParamsString
 
     ' always clear filters before replacing ( or removing all )
     for each key in filterValues
@@ -531,14 +626,19 @@ function addFiltersToUrl(sourceurl,filterObj)
         sourceurl = re.ReplaceAll(sourceurl, "")
     end for 
 
-    ' always clear type - either it will be in the filterParamsString or not..
+    ' always clear type - either it will be in the filterParamsString or not (which mean default sorting)
     re = CreateObject("roRegex", "([\&\?]type=[^\&\?]+)", "i")
     sourceurl = re.ReplaceAll(sourceurl, "")
 
     ' need a better way to to this... 
+    ' BUG - could be fixed with recent updates. Adding filters/sorts/types and removing some
+    ' resulted in the first paramater having & instead of ? - This will only fix /all but it 
+    ' should be the only endpoint we are filtering anyways (for now)
     re = CreateObject("roRegex", "/all&", "i")
     sourceurl = re.ReplaceAll(sourceurl, "/all?")
 
+    ' this should be last filterParamsString empty/invalid means wew need to strip any 
+    ' filters/sorts to return an unadulterated sourceUrl
     if filterParamsString = invalid or filterParamsString = "" then return sourceurl
     f = "?"
     if instr(1, sourceurl, "?") > 0 then f = "&"    
@@ -547,65 +647,25 @@ function addFiltersToUrl(sourceurl,filterObj)
     return sourceurl
 end function
 
-function getFilterDescription(server,sourceurl)
-    description = ""
+function getFilterSortDescription(server,sourceurl)
+    description = "None"
     if server = invalid or sourceurl = invalid then return description
     
-    dummyObj = {}
-    dummyObj.server = server
-    dummyObj.sourceurl = sourceurl
-    dummyObj.getSortString = getSortString
-    sortingText = dummyObj.getSortString()
-    filterObj = getFilterParams(dummyObj.server,dummyObj.sourceurl)
-    if filterObj <> invalid and filterObj.filterKeysString <> "" then 
-        description = "Filters: " + filterObj.filterKeysString
-    else 
+    filterSortObj = getFilterSortParams(dummyObj.server,dummyObj.sourceurl)
+    
+    if filterSortObj <> invalid then
         description = "Filters: None"
-    end if
-    if sortingText <> invalid and sortingText <> "" then 
-        description = description + chr(10)+chr(10) + "Sort: " + sortingText
+        if filterSortObj.filterKeysString <> "" then
+            description = "Filters: " + filterSortObj.filterKeysString
+        end if
+
+        if filterSortObj.sortItem <> invalid and filterSortObj.sortItem.title <> invalid then
+            description = description + chr(10)+chr(10) + "Sort: " + filterSortObj.sortItem.title
+        end if
     end if
 
-    return Description
+    return description
 end function
-
-' Inline Filtering - refreshes grid on activate -- this is just gross and too many odd issues with filters
-' Instead we will close the grid and recreate with a callback
-'sub gridFilterSection()
-'    Debug("gridFilterSection:: called")
-'    grid = m.parentscreen
-'
-'    if grid = invalid or grid.loader = invalid or grid.loader.sourceurl = invalid or grid.loader.server = invalid then 
-'        Debug("gridSortSection:: cannot filter! grid is invalid or requied loader data is missing")
-'        return
-'    end if
-'
-'    ' get filter string
-'    filterObj = getFilterParams(grid.loader.server,grid.loader.sourceurl)
-'
-'    sourceurl = grid.loader.sourceurl
-'    if sourceurl <> invalid then 
-'        sourceurl = addFiltersToUrl(sourceurl,filterObj)
-'        grid.loader.sourceurl = sourceurl
-'        grid.loader.sortingForceReload = true
-'        if grid.loader.listener <> invalid and grid.loader.listener.loader <> invalid then 
-'            grid.loader.listener.loader.sourceurl = sourceurl
-'            print grid.loader.listener.loader.sourceurl
-'        end if
-'    end if
-'
-'    contentArray =  grid.loader.contentArray
-'    if contentArray <> invalid and contentArray.count() > 0 then 
-'        for index = 0 to contentArray.count()-1
-'            if contentArray[index].key <> invalid then 
-'                contentArray[index].key = addFiltersToUrl(contentArray[index].key,filterObj)
-'                print contentArray[index].key
-'            end if
-'        end for
-'    end if
-'
-'end sub
-'
 
 function createSectionFilterItem(server,sourceurl,itemType)
     sectionKey = getBaseSectionKey(sourceurl)
@@ -614,14 +674,15 @@ function createSectionFilterItem(server,sourceurl,itemType)
     filterItem.key = "_section_filters_"
     filterItem.type = itemType
     filterItem.server = server
-    filterItem.sourceurl = sourceurl + sectionKey + "/filters"
+    filterItem.sourceurl = server.serverurl + sectionKey + "/filters"
     filterItem.name = "Filters"
     filterItem.umtitle = "Enabled Filters & Sorting"
     filterItem.title = filterItem.umtitle
-    filterItem.viewGroup = "section_filters"
+    filterItem.viewGroup = "section"
     filterItem.SDPosterURL = imageDir + "gear.png"
     filterItem.HDPosterURL = imageDir + "gear.png"
     rfCDNthumb(filterItem,filterItem.name,invalid)
+    Debug("-- dummy filter item created --")
     print filterItem
     return filterItem
 end function
@@ -652,3 +713,68 @@ function getValidFilters(server,sourceUrl)
     return validFilters
 end function
 
+function getFilterBreadcrumbs(filterSortObj,item)
+    breadcrumbs = ["",""]
+
+    sortTitle = invalid
+    if filterSortObj.sortItem <> invalid then 
+        ' only include sortTitle if not the default Sort
+        if RegRead("section_sort", "preferences","titleSort:asc") <> filterSortObj.sortItem.key then sortTitle = filterSortObj.sortitem.title
+    end if
+
+    if filterSortObj.hasFilters = true and sortTitle = invalid then 
+         ' only filters are enable (default sorting)
+         breadcrumbs = [item.title,"Filters Enabled"]
+    else if filterSortObj.hasFilters = true and sortTitle <>  invalid then 
+         ' filters and sorting have been modified
+         breadcrumbs = ["Filters Enabled", sortTitle]
+    else if sortTitle <> invalid then 
+         ' only sorting has been modified
+         breadcrumbs = [item.title,sortTitle]
+    else 
+         ' back to defaults
+         breadcrumbs = [firstof(item.server.name,""),item.title]
+    end if
+
+    return breadcrumbs
+end function
+
+' deprecated -- to remove
+'
+' Inline Filtering - refreshes grid on activate -- this is just gross and too many odd issues with filters
+' Instead we will close the grid and recreate with a callback
+'sub gridFilterSection()
+'    Debug("gridFilterSection:: called")
+'    grid = m.parentscreen
+'
+'    if grid = invalid or grid.loader = invalid or grid.loader.sourceurl = invalid or grid.loader.server = invalid then 
+'        Debug("gridSortSection:: cannot filter! grid is invalid or requied loader data is missing")
+'        return
+'    end if
+'
+'    ' get filter string
+'    filterSortObj = getFilterSortParams(grid.loader.server,grid.loader.sourceurl)
+'
+'    sourceurl = grid.loader.sourceurl
+'    if sourceurl <> invalid then 
+'        sourceurl = addFiltersToUrl(sourceurl,filterSortObj)
+'        grid.loader.sourceurl = sourceurl
+'        grid.loader.sortingForceReload = true
+'        if grid.loader.listener <> invalid and grid.loader.listener.loader <> invalid then 
+'            grid.loader.listener.loader.sourceurl = sourceurl
+'            print grid.loader.listener.loader.sourceurl
+'        end if
+'    end if
+'
+'    contentArray =  grid.loader.contentArray
+'    if contentArray <> invalid and contentArray.count() > 0 then 
+'        for index = 0 to contentArray.count()-1
+'            if contentArray[index].key <> invalid then 
+'                contentArray[index].key = addFiltersToUrl(contentArray[index].key,filterSortObj)
+'                print contentArray[index].key
+'            end if
+'        end for
+'    end if
+'
+'end sub
+'

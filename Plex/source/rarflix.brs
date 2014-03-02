@@ -1054,7 +1054,7 @@ sub rfVideoMoreButtonFromGrid(obj as Object) as Dynamic
     ' end hack
 
     ' display View All Seasons if we have grandparentKey -- entered from a episode
-    if obj.metadata.grandparentKey <> invalid then 
+    if obj.metadata.grandparentKey <> invalid then
         if obj.metadata.type = "season" and type(obj.screen) = "roPosterScreen"  then
             ' this is a ALL seasons view on a posterscreen -- can we add mark as watched/unwatched to make them all??
         else 

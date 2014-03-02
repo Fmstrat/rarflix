@@ -56,11 +56,11 @@ Function createFULLGridScreen(item, viewController, style = "flat-movie", SetDis
 
     ' apply the choosen filters if set for this section/server
     if item.key = "all" then 
-        filterObj = getFilterParams(container.server,container.sourceurl)
-        obj.hasFilters = filterObj.hasFilters
+        filterSortObj = getFilterSortParams(container.server,container.sourceurl)
+        obj.hasFilters = filterSortObj.hasFilters
         if obj.hasFilters = true then 
             container.hasFilters = obj.hasFilters
-            container.sourceurl = addFiltersToUrl(container.sourceurl,filterObj)
+            container.sourceurl = addFiltersToUrl(container.sourceurl,filterSortObj)
         end if
     end if
 
@@ -83,9 +83,9 @@ function createPlexContainerForUrlSizeOnly(server, sourceUrl, detailKey)
 
     fullSourceUrl = httpRequest.GetUrl()
     if detailKey = "all" then 
-        filterObj = getFilterParams(server,fullSourceUrl)
-        if filterObj <> invalid then 
-            fullSourceUrl = addFiltersToUrl(fullSourceUrl,filterObj)
+        filterSortObj = getFilterSortParams(server,fullSourceUrl)
+        if filterSortObj <> invalid then 
+            fullSourceUrl = addFiltersToUrl(fullSourceUrl,filterSortObj)
             httpRequest.seturl(fullSourceUrl)
         end if
     end if
@@ -138,6 +138,8 @@ Function createFULLgridPaginatedLoader(container, initialLoadSize, pageSize, ite
     loader.names = []
     increment=pagesize
 
+    ' include the header row on the full grid ONLY if we have set this section to default to Full Grid - 
+    ' otherwise users already see a header row on the previous grid screen
     headerRow = []
     if item <> invalid and item.usefullgrid = true and item.key = "all" and loader.server <> invalid and loader.sourceurl <> invalid then 
         sectionKey = getBaseSectionKey(loader.sourceurl)

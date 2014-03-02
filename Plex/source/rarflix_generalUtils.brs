@@ -310,7 +310,7 @@ end function
 
 ' used to get/set the cachekeys used for globalAA records
 '  if typeKey is sepcifided, it will set the server/section type
-function getFilterSortCacheKeys(server,sourceUrl,typeKey=invalid)
+function getFilterSortCacheKeys(server=invalid,sourceUrl=invalid,typeKey=invalid)
     if server = invalid or sourceUrl = invalid then return invalid
     ' get base section from url
     sectionKey = getBaseSectionKey(sourceUrl)
@@ -319,13 +319,19 @@ function getFilterSortCacheKeys(server,sourceUrl,typeKey=invalid)
     obj = {}
 
     obj.sectionKey = sectionKey    
-    obj.typeCacheKey = "section_typekey_"+tostr(server.machineid)+tostr(sectionKey)
+    obj.typeValCacheKey = "section_typekey_"+tostr(server.machineid)+tostr(sectionKey)
+
+    ' set the cuttent type if sent
     if typeKey <> invalid then 
-        GetGlobalAA().AddReplace(obj.typeCacheKey, typeKey)
+        GetGlobalAA().AddReplace(obj.typeValCacheKey, typeKey)
     end if
 
-    obj.typeKey = GetGlobal(obj.typeCacheKey)
+    ' value keys ( single values: type & sort)
+    obj.typeKey = GetGlobal(obj.typeValCacheKey)
+
+    ' Global Cache keys for values ( after verifyting typeKey )
     obj.filterValuesCacheKey = "section_filters_"+tostr(server.machineid)+tostr(sectionKey)+"_"+tostr(obj.typeKey)
+    obj.sortValCacheKey = "section_sort_"+tostr(server.machineid)+tostr(sectionKey)+"_"+tostr(obj.typeKey)
 
     ' available filter and sorts for section (with typeKey if set)
     obj.filterCacheKey = "filters_"+tostr(server.machineid)+tostr(sectionKey)+"_"+tostr(obj.typeKey)
