@@ -440,15 +440,16 @@ Function vcCreateScreenForItem(context, contextIndex, breadcrumbs, show=true) As
         item.defaultFullGrid = useFullGrid
         if NOT item.defaultFullGrid then 
             ' standard Grid screen - multiple rows
-            ' this will only happen if somone has changed FullGrid prefs during the section
-            ' we could just reload the HomeScreenRows when toggled - but this doesn't seem bad
-            if item.OrigSourceUrl <> invalid and item.origkey <> invalid then 
-                item.key = item.origkey
-                item.sourceurl = item.OrigSourceUrl
-                item.origkey = invalid
-                item.OrigSourceUrl = invalid
-            end if
 
+            ' reset to original keys -- this will only happen if somone has changed FullGrid prefs during 
+            ' the section. We could just reload the HomeScreenRows when toggled - but this doesn't seem bad
+            if item.OrigKeys <> invalid then 
+                item.key = item.OrigKeys.key
+                item.sourceurl = item.OrigKeys.sourceUrl
+                item.origkeys= invalid
+            end if
+            
+            print item
             screen = createGridScreenForItem(item, m, grid_style, displaymode_grid)
             if focusrow <> invalid and screen.loader.focusrow <> invalid then screen.loader.focusrow = focusrow
         else 
@@ -465,9 +466,8 @@ Function vcCreateScreenForItem(context, contextIndex, breadcrumbs, show=true) As
                 dlg.Show(true)
             end if
 
-            ' retain originals
-            item.OrigSourceUrl = item.sourceurl
-            item.Origkey = item.key
+            ' shallowCopy the item for the origina key and sourceurl
+            if item.origkeys = invalid then item.origkeys = ShallowCopy(item,1)
 
             ' reset the section to use the /all endpoint 
             ' - make sure we have the base section key ( strip any junk/subsections )
