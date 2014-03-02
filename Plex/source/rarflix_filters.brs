@@ -186,9 +186,8 @@ Function createSubFilterListScreen(key) As Object
     facade.show()
 
     obj = createBasePrefsScreen(GetViewController())
+    obj.Screen.SetHeader("Filter by " + m.filterValues[key].filter.title)
 
-
-    obj.Screen.SetHeader("Sub Filter Options")
     obj.FilterSelection = m.filterValues[key]
     obj.ParentScreen = m
     obj.isFilterEnabled = isFilterEnabled
