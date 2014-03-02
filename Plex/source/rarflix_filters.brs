@@ -739,6 +739,18 @@ function getFilterBreadcrumbs(filterSortObj,item)
     return breadcrumbs
 end function
 
+sub createFilterSortScreenFromItem(item=invalid,parentScreen=invalid)
+        if item <> invalid and parentScreen <> invalid then 
+            filterItem = createSectionFilterItem(item.server,item.sourceurl,item.type)
+            screen = createFilterSortListScreen(filterItem,parentScreen)
+            screenName = "Grid Filters"
+            screen.ScreenName = screenName
+            breadcrumbs =  ["Filters: " + item.title]
+            m.ViewController.InitializeOtherScreen(screen, breadcrumbs)
+            screen.Show()
+        end if
+end sub
+
 ' deprecated -- to remove
 '
 ' Inline Filtering - refreshes grid on activate -- this is just gross and too many odd issues with filters

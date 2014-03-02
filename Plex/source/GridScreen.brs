@@ -400,7 +400,8 @@ Function gridHandleMessage(msg) As Boolean
                 end if
             end if
         else if ((msg.isRemoteKeyPressed() AND msg.GetIndex() = 10) OR msg.isButtonInfo()) then ' ljunkie - use * for more options on focused item
-                Debug("----- * button pressed")
+                Debug("----- * button pressed on grid")
+
                 context = m.contentArray[m.selectedRow]
                 item = context[m.focusedIndex]
                 
