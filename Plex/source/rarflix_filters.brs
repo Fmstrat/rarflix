@@ -751,6 +751,17 @@ sub createFilterSortScreenFromItem(item=invalid,parentScreen=invalid)
         end if
 end sub
 
+sub clearFiltersForUrl(server,sourceUrl)
+    filterSortObj = getFilterSortParams(server,sourceurl)
+    if filterSortObj <> invalid and filterSortObj.cachekeys <> invalid and filterSortObj.cachekeys.filterValuesCacheKey <> invalid then 
+        Debug("clearing filter values for sectionKey" + tostr(filterSortObj.cachekeys.filterValuesCacheKey))
+        obj={}
+        obj.filterValues = GetGlobal(filterSortObj.cachekeys.filterValuesCacheKey)
+        obj.clearFilterList = clearfilterList
+        obj.clearfilterList()
+    end if
+end sub
+
 ' deprecated -- to remove
 '
 ' Inline Filtering - refreshes grid on activate -- this is just gross and too many odd issues with filters

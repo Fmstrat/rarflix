@@ -128,7 +128,8 @@ Function createFULLgridPaginatedLoader(container, initialLoadSize, pageSize, ite
         dialog = createBaseDialog()
         if container.hasFilters = true then 
             dialog.Title = "No Results"
-            dialog.Text = "Please change or clear your filters"
+            dialog.Text = "This filter selection contains no results. Clearing all filters"
+            clearFiltersForUrl(item.server,item.sourceurl)
         else 
             dialog.Title = "No Results"
             dialog.Text = "This section doesn't contain any items"
