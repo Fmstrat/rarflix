@@ -56,6 +56,7 @@ Function createFULLGridScreen(item, viewController, style = "flat-movie", SetDis
 
     ' apply the choosen filters if set for this section/server
     if item.key = "all" then 
+        obj.isFilterable = true
         filterSortObj = getFilterSortParams(container.server,container.sourceurl)
         obj.hasFilters = filterSortObj.hasFilters
         if obj.hasFilters = true then 
@@ -65,6 +66,7 @@ Function createFULLGridScreen(item, viewController, style = "flat-movie", SetDis
     end if
 
     obj.Loader = createFULLgridPaginatedLoader(container, grid_size, grid_size, item)
+    obj.Loader.isFilterable = (obj.isFilterable = true)
     obj.Loader.Listener = obj
     ' Don't play theme music on top of grid screens on the older Roku models.
     ' It's not worth the DestroyAndRecreate headache.

@@ -290,27 +290,33 @@ end sub
 ' not be added to the dialog unless valid
 sub dialogSetSortingButton(dialog,obj) 
     if obj.isfullgrid = true and type(obj.screen) = "roGridScreen" then 
-        reFILT = CreateObject("roRegex", "/all", "i")
+        'reFILT = CreateObject("roRegex", "/all", "i")
         reSORT = CreateObject("roRegex", "/all|/firstCharacter", "i")
+
         if obj.loader <> invalid and obj.loader.sourceurl <> invalid then 
             ' include the sorting options all the time
-            dummyObj = {}
-            dummyObj.server = obj.loader.server
-            dummyObj.sourceurl = obj.loader.sourceurl
-            dummyObj.getSortString = getSortString                        
-            dummyObj.getSortKey = getSortKey
+            sortText = ""
+            sort = getSortingOption(obj.loader.server,obj.loader.sourceurl)
+            if sort <> invalid and sort.item <> invalid and sort.item.title <> invalid then 
+                sortText = sort.item.title
+            end if
 
-            if reFILT.IsMatch(obj.loader.sourceurl) then
+            ' ONLY allow filtering if the obj.loader is filterable
+            if obj.loader.isFilterable = true then
+                FilterSortText = "Filters: "
                 if getFilterSortParams(obj.loader.server,obj.loader.sourceurl).hasFilters = true then 
-                    dialog.SetButton("gotoFilters", "Filters: Enabled, Sort: " + dummyObj.getSortString())
+                    FilterSortText = FilterSortText + "Enabled" 
                 else 
-                    dialog.SetButton("gotoFilters", "Filters: None, Sort: " + dummyObj.getSortString())
+                    FilterSortText = FilterSortText + "None" 
                 end if
-            else if reSORT.IsMatch(obj.loader.sourceurl) then
-                sort = getSortingOption(obj.loader.server,obj.loader.sourceurl)
-                if sort <> invalid and sort.item <> invalid and sort.item.title <> invalid then 
-                    dialog.SetButton("SectionSorting", "Sorting: " + sort.item.title)
+
+                if sortText <> "" then 
+                    FilterSortText = FilterSortText + ", Sort: "+sortText
                 end if
+                dialog.SetButton("gotoFilters", FilterSortText)
+            else if reSORT.IsMatch(obj.loader.sourceurl) and sortText <> "" then 
+                ' fallback - show the sorting button if url endpoint allows sorting
+                dialog.SetButton("SectionSorting", "Sort: " + sortText)
             end if
         else 
             ' TODO(ljunkie) - think about removing this -- waste of screen space

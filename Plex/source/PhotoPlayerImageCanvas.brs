@@ -203,6 +203,15 @@ Function photoContextMenuHandleButton(command, data) As Boolean
         dialog = createGridSortingDialog(m,obj)
         if dialog <> invalid then dialog.Show(true)
         handled = false
+    else if command = "gotoFilters" then
+        filterItem = createSectionFilterItem(obj.item.server,obj.item.sourceurl,obj.item.type)
+        screen = createFilterSortListScreen(filterItem,obj)
+        screenName = "Grid Filters"
+        screen.ScreenName = screenName
+        breadcrumbs =  ["Filters: " + m.parentscreen.originalitem.title]
+        m.ViewController.InitializeOtherScreen(screen, breadcrumbs)
+        screen.Show()
+        closeDialog = true
     end if
 
     ' close the dialog 

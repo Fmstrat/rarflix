@@ -571,6 +571,19 @@ Function audioPlayerMenuHandleButton(command, data) As Boolean
         dialog = createGridSortingDialog(m,m.RealParentScreen)
         if dialog <> invalid then dialog.Show(true)
         return false
+    else if command = "gotoFilters" then
+        ' audio dialog is special. Get the original item from the grid screen
+        item = m.RealParentScreen.originalitem
+        if item <> invalid then 
+            filterItem = createSectionFilterItem(item.server,item.sourceurl,item.type)
+            screen = createFilterSortListScreen(filterItem,m.RealParentScreen)
+            screenName = "Grid Filters"
+            screen.ScreenName = screenName
+            breadcrumbs =  ["Filters: " + item.title]
+            m.ViewController.InitializeOtherScreen(screen, breadcrumbs)
+            screen.Show()
+        end if
+        closeDialog = true
     end if
 
     ' For now, close the dialog after any button press instead of trying to
