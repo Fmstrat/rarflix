@@ -437,8 +437,8 @@ Function vcCreateScreenForItem(context, contextIndex, breadcrumbs, show=true) As
         ' TODO(ljunkie) add other modes in here to make this logic more sound
         if grid_style = "flat-16x9" then focusrow = 2
 
-        item.useFullGrid = useFullGrid
-        if NOT useFullGrid then 
+        item.defaultFullGrid = useFullGrid
+        if NOT item.defaultFullGrid then 
             ' standard Grid screen - multiple rows
             ' this will only happen if somone has changed FullGrid prefs during the section
             ' we could just reload the HomeScreenRows when toggled - but this doesn't seem bad

@@ -128,8 +128,13 @@ Function createFULLgridPaginatedLoader(container, initialLoadSize, pageSize, ite
         dialog = createBaseDialog()
         if container.hasFilters = true then 
             dialog.Title = "No Results"
-            dialog.Text = "This filter selection contains no results. Clearing all filters"
-            clearFiltersForUrl(item.server,item.sourceurl)
+            if item.defaultFullGrid = true then 
+                dialog.Text = "The filter selection results are empty."
+            else 
+                ' we must clear the filters for anyone not using a full grid by default -- they don't get a header row and the grid will close
+                dialog.Text = "The filter selection results are empty. Clearing all filters"
+                clearFiltersForUrl(item.server,item.sourceurl)
+            end if
         else 
             dialog.Title = "No Results"
             dialog.Text = "This section doesn't contain any items"
@@ -144,7 +149,7 @@ Function createFULLgridPaginatedLoader(container, initialLoadSize, pageSize, ite
     ' include the header row on the full grid ONLY if we have set this section to default to Full Grid - 
     ' otherwise users already see a header row on the previous grid screen
     headerRow = []
-    if item <> invalid and item.usefullgrid = true and item.key = "all" and loader.server <> invalid and loader.sourceurl <> invalid then 
+    if item <> invalid and item.defaultFullGrid = true and item.key = "all" and loader.server <> invalid and loader.sourceurl <> invalid then 
         sectionKey = getBaseSectionKey(loader.sourceurl)
         container = createPlexContainerForUrl(loader.server, invalid, sectionKey)
         rawItems = container.GetMetadata() ' grab subsections for FULL grid. We might want to hide some (same index as container.GetKeys())
