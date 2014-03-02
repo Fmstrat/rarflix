@@ -28,7 +28,8 @@ Function createFilterSortListScreen(item, gridScreen, typeKey=invalid) As Object
     obj.createTypeListScreen = createTypeListScreen
 
     obj.filterOnClose = true
-    obj.forcefilterOnClose = NOT(typeKey=invalid)
+    ' force a new full grid if the type is modified or the item calls for a it (viewing filters item from a non full grid)
+    obj.forcefilterOnClose = (NOT(typeKey=invalid) or item.forcefilterOnClose=true)
 
     obj.clearFilters = clearFilterList
     obj.getFilterKeyString = getFilterKeyString
@@ -49,7 +50,8 @@ Function createFilterSortListScreen(item, gridScreen, typeKey=invalid) As Object
     ' the fuck prefsFilterSortActivate() with any new button logic - ordering of buttons
     ' will break logic
 
-    obj.defaultTypes = defaultTypes(item.type,obj.cacheKeys.typeKey)
+    sec_metadata = getSectionType()
+    obj.defaultTypes = defaultTypes(firstof(sec_metadata.type,item.type),obj.cacheKeys.typeKey)
     if obj.defaultTypes <> invalid then 
         obj.AddItem({title: "Type",}, "create_type_screen", getDefaultType(obj.defaultTypes))
     end if
@@ -304,6 +306,7 @@ Function prefsFilterSortHandleMessage(msg) As Boolean
                     callback = CreateObject("roAssociativeArray")
                     callback.facade = m.facade
                     callback.item = gridItem
+                    callback.item.callbackFullGrid = true ' always use the fullgrid when re-creating
                     callback.breadcrumbs = breadcrumbs
                     callback.OnAfterClose = createScreenForItemCallback
 
@@ -650,7 +653,7 @@ function getFilterSortDescription(server,sourceurl)
     description = "None"
     if server = invalid or sourceurl = invalid then return description
     
-    filterSortObj = getFilterSortParams(dummyObj.server,dummyObj.sourceurl)
+    filterSortObj = getFilterSortParams(server,sourceurl)
     
     if filterSortObj <> invalid then
         description = "Filters: None"
@@ -666,24 +669,30 @@ function getFilterSortDescription(server,sourceurl)
     return description
 end function
 
-function createSectionFilterItem(server,sourceurl,itemType)
+function createSectionFilterItem(server=invalid,sourceurl=invalid,itemType=invalid)
     sectionKey = getBaseSectionKey(sourceurl)
-    imageDir = GetGlobalAA().Lookup("rf_theme_dir")
-    filterItem = {}
-    filterItem.key = "_section_filters_"
-    filterItem.type = itemType
-    filterItem.server = server
-    filterItem.sourceurl = server.serverurl + sectionKey + "/filters"
-    filterItem.name = "Filters"
-    filterItem.umtitle = "Enabled Filters & Sorting"
-    filterItem.title = filterItem.umtitle
-    filterItem.viewGroup = "section"
-    filterItem.SDPosterURL = imageDir + "gear.png"
-    filterItem.HDPosterURL = imageDir + "gear.png"
-    rfCDNthumb(filterItem,filterItem.name,invalid)
-    Debug("-- dummy filter item created --")
-    print filterItem
-    return filterItem
+
+    if server <> invalid and sourceurl <> invalid then 
+        sec_metadata = getSectionType()
+        imageDir = GetGlobalAA().Lookup("rf_theme_dir")
+        filterItem = {}
+        filterItem.key = "_section_filters_"
+        filterItem.type = firstof(sec_metadata.type,itemType)
+        filterItem.server = server
+        filterItem.sourceurl = server.serverurl + sectionKey + "/filters"
+        filterItem.name = "Filters"
+        filterItem.umtitle = "Enabled Filters & Sorting"
+        filterItem.title = filterItem.umtitle
+        filterItem.viewGroup = "section"
+        filterItem.SDPosterURL = imageDir + "gear.png"
+        filterItem.HDPosterURL = imageDir + "gear.png"
+        rfCDNthumb(filterItem,filterItem.name,invalid)
+        Debug("-- dummy filter item created -- sourceUrl:" + tostr(sourceurl) + " type:" + tostr(itemType))
+        print filterItem
+        return filterItem
+    end if
+    Debug("-- dummy filter item NOT created -- sourceUrl:" + tostr(sourceurl) + " type:" + tostr(itemType))
+    return invalid
 end function
 
 
@@ -740,7 +749,11 @@ end function
 
 sub createFilterSortScreenFromItem(item=invalid,parentScreen=invalid)
         if item <> invalid and parentScreen <> invalid then 
+            ' item types can sometimes be something we are not expecting - we really care about section type, not item
+            ' TODO(ljunkie) possibly use this elsewhere when expecting SECTION TYPE instead of item.type (sec_metadata.type)
+            ' filterItem = createSectionFilterItem(item.server,item.sourceurl,item.type)
             filterItem = createSectionFilterItem(item.server,item.sourceurl,item.type)
+            if filterItem = invalid then return
             screen = createFilterSortListScreen(filterItem,parentScreen)
             screenName = "Grid Filters"
             screen.ScreenName = screenName

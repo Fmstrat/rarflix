@@ -410,7 +410,11 @@ Function vcCreateScreenForItem(context, contextIndex, breadcrumbs, show=true) As
         screenName = "Section: " + tostr(item.type)
 
         ' check if section has the full grid enabled
-        if item <> invalid and item.ishomevideos = true then 
+        if item.callbackFullGrid = true then 
+            ' - special case "item.callbackFullGrid" used when one views the filter items from a nonfull grid
+            useFullGrid = true
+            item.callbackFullGrid = invalid
+        else if item.ishomevideos = true then 
             useFullGrid = (RegRead("rf_full_grid_homevideo", "preferences", "disabled") = "enabled")
         else     
             useFullGrid = (RegRead("rf_full_grid_"+tostr(item.type), "preferences", "disabled") = "enabled")

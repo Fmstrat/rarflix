@@ -303,8 +303,8 @@ Function gridHandleMessage(msg) As Boolean
                 SaveImagesForScreenSaver(item, ImageSizes(item.ViewGroup, item.Type))
             end if
 
-            ' include what is filtered in popout
-            if item <> invalid and tostr(item.viewgroup) = "section_filters" then 
+            ' include what is filtered in popout (only if content being viewed is filterable)
+            if item <> invalid and tostr(item.key) = "_section_filters_" and  m.loader.isfilterable = true then 
                 item.description = getFilterSortDescription(item.server,item.sourceurl)
                 m.Screen.SetContentListSubset(m.selectedRow, m.contentArray[m.selectedRow], m.focusedIndex, 1)
             end if

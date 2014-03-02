@@ -164,7 +164,7 @@ Function createFULLgridPaginatedLoader(container, initialLoadSize, pageSize, ite
 
         ' Put Filters before any others
         filterItem = createSectionFilterItem(loader.server,loader.sourceurl,item.type)
-        headerRow.Unshift(filterItem)
+        if filterItem <> invalid then headerRow.Unshift(filterItem)
 
     end if
 
