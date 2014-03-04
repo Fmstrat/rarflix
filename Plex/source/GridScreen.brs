@@ -253,16 +253,10 @@ Function gridHandleMessage(msg) As Boolean
                 if item.ContentType = "series" then
                     breadcrumbs = [item.Title]
                 else if item.ContentType = "section" then
-                    ' include the sorting if not default
-                    dummyObj = {}
-                    dummyObj.server = item.server
-                    dummyObj.sourceurl = item.sourceurl
-                    dummyObj.getSortString = getSortString                        
-                    dummyObj.getSortKey = getSortKey
-                    defaultSort = RegRead("section_sort", "preferences","titleSort:asc")
-                    if defaultSort <> dummyObj.getSortKey() then 
-                        breadcrumbs = [item.title, dummyObj.getSortString()]
-                    else 
+                    ' include the filter/sorting in the breadcrumbs
+                    filterSortObj = getFilterSortParams(item.server,item.sourceurl)
+                    breadcrumbs = getFilterBreadcrumbs(filterSortObj,item)
+                    if breadcrumbs = invalid or breadcrumbs.count() = 0 then 
                         breadcrumbs = [item.server.name, item.Title]
                     end if
                 else
